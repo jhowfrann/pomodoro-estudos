@@ -83,6 +83,7 @@
         </div>
         <ul id="listaConcursos"></ul>
       </div>
+      <div class="meta">Ciclos concluídos (todas as trilhas): <b id="ciclosCount">0</b></div>
     </section>
 
     <!-- 2) DISCIPLINAS (por Concurso selecionado) -->
@@ -147,7 +148,6 @@
 
         <div style="margin:12px 0 16px;">
           <div id="timer" class="timer">00:00</div>
-          <div class="meta">Ciclos concluídos (todas as trilhas): <b id="ciclosCount">0</b></div>
         </div>
 
         <div class="row" style="justify-content:center;">
@@ -195,6 +195,7 @@
     let disciplinas = [];      // todas as disciplinas (vamos filtrar por concurso)
     let selectedConcursoId = ""; // controle global de seleção
     let editDisciplinaId = null;
+    let disciplinaAtualIndex = 0; // começa na primeira da fila
 
     // Execução
     let running=false, paused=false, timerId=null, idx=0, fase='estudo', segundos=0;
@@ -240,6 +241,11 @@
     onAuthStateChanged(auth, async (u)=>{
       user = u || null;
 
+      if(user){
+        await carregarEstado();
+      }
+
+
       if(!user){
         $('userLabel').innerText = 'Desconectado';
         $('btnSignIn').classList.remove('hidden');
@@ -280,6 +286,8 @@
         paintExecQueue();
       });
     });
+
+
 
     // ===== CONCURSOS =====
     $('btnAddConcurso').addEventListener('click', async ()=>{
@@ -455,6 +463,13 @@
         const li = document.createElement('li');
         li.innerHTML = `<div><b>${i+1}. ${d.nome}</b> <span class="meta">(${d.estudo}+${d.pausa})</span></div>`;
         fila.appendChild(li);
+
+        // 🔹 Aqui entra o "Executando"
+        if (i === disciplinaAtualIndex) {
+          li.innerHTML += " <span style='color:green'>(Executando)</span>";
+        }
+
+        fila.appendChild(li);
       });
     }
 
@@ -487,6 +502,7 @@
       timerId = setInterval(async ()=>{
         if(paused) return;
         segundos--;
+        salvarEstado()
         $('timer').innerText = fmt(segundos);
         if(segundos<=0){
           clearInterval(timerId);
@@ -504,6 +520,9 @@
           } else {
             // terminou pausa -> próxima disciplina
             idx++;
+            disciplinaAtualIndex = idx;
+            paintExecQueue(); // redesenha a fila mostrando quem está "Executando"
+
             if(idx>=list.length){
               // ciclo completo da trilha
               await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
@@ -518,6 +537,40 @@
         }
       },1000);
     }
+     
+    //import { getDatabase, ref, set } from "firebase/database";
+    import { getDatabase, ref as dbRef, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    const dbRT = getDatabase(app); // já com sua config do Firebase
+
+    function salvarEstado() {
+      if (!user) return; // só salva se o usuário estiver logado
+      set(ref(dbRT, 'users/' + user.uid + '/execState'), {
+        disciplinaAtualIndex,
+        fase,
+        //segundosRestantes: 
+        segundos,
+        timestamp: Date.now()
+      });
+    }
+
+    async function carregarEstado(){
+        const ref = dbRef(db, `users/${user.uid}/execState`);
+        //const snap = await get(ref);
+        const snap = await get(dbRef(dbRT, `users/${user.uid}/execState`));
+        if(snap.exists()){
+            const data = snap.val();
+            selectedConcursoId = data.concursoId || selectedConcursoId;
+            disciplinaAtualIndex = data.disciplinaAtualIndex || 0;
+            fase = data.fase || 'estudo';
+            segundos = data.segundos || 0;
+
+            paintExecInfo();
+            paintExecQueue();
+            paintTimer();
+        }
+    }
+
 
     function pauseResume(){
       if(!running) return;
