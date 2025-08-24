@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pomodoro de Estudos (com Login Google)</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background: var(--bg); color: var(--text); }
+    header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.06); position:sticky; top:0; z-index:10; }
+    header h1 { font-size:18px; margin:0; }
+    .auth { display:flex; gap:8px; align-items:center; }
+    .btn { border:0; padding:10px 12px; border-radius:10px; background: var(--accent); color:#fff; cursor:pointer; font-weight:600; }
+    .btn.secondary { background:#e5e7eb; color:#111827; }
+    .btn.danger { background:#ef4444; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .container { max-width: 900px; margin: 20px auto; padding: 0 12px; }
+    nav { display:flex; gap:8px; margin-bottom:12px; }
+    .card { background:var(--card); border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.06); padding:16px; }
+    .grid { display:grid; gap:12px; }
+    @media (min-width:740px){ .grid-cols-2 { grid-template-columns: 1fr 1fr; } }
+    input, select { width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; outline:none; }
+    label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+    ul { list-style:none; padding:0; margin:0; }
+    li { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border:1px solid #eef2f7; border-radius:10px; margin-bottom:8px; background:#fff; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .meta { color:var(--muted); font-size:12px; }
+    .pill { background:#eef2ff; color:#3730a3; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .hidden { display:none; }
+    .timer { font-size:48px; font-weight:800; letter-spacing:2px; }
+    .title { margin:0 0 8px 0; font-size:18px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pomodoro de Estudos</h1>
+    <div class="auth">
+      <span id="userLabel" class="meta">Desconectado</span>
+      <button id="btnSignIn" class="btn" title="Entrar com Google">Entrar com Google</button>
+      <button id="btnSignOut" class="btn secondary hidden" title="Sair">Sair</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav>
+      <button class="btn secondary" id="tabDisciplinas">📘 Disciplinas</button>
+      <button class="btn secondary" id="tabExecucao">⏱ Execução</button>
+    </nav>
+
+    <!-- Disciplinas -->
+    <section id="pageDisciplinas" class="grid grid-cols-2">
+      <div class="card">
+        <h2 class="title">Cadastrar / Editar</h2>
+        <div class="grid">
+          <div>
+            <label for="nome">Nome da disciplina</label>
+            <input id="nome" placeholder="Ex.: Cálculo, Inglês, Projeto" />
+          </div>
+          <div class="grid grid-cols-2">
+            <div>
+              <label for="estudo">Minutos de estudo</label>
+              <input id="estudo" type="number" min="1" value="50" />
+            </div>
+            <div>
+              <label for="pausa">Minutos de pausa</label>
+              <input id="pausa" type="number" min="1" value="10" />
+            </div>
+          </div>
+          <div class="row">
+            <button id="btnAdd" class="btn">Adicionar</button>
+            <button id="btnSaveEdit" class="btn hidden">Salvar edição</button>
+            <button id="btnCancelEdit" class="btn secondary hidden">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2 class="title">Minhas disciplinas</h2>
+        <ul id="lista"></ul>
+      </div>
+    </section>
+
+    <!-- Execução -->
+    <section id="pageExecucao" class="hidden">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <div class="meta">Disciplina atual</div>
+            <h2 id="disciplinaAtual" class="title">—</h2>
+          </div>
+          <div>
+            <div class="meta">Fase</div>
+            <span id="fasePill" class="pill">—</span>
+          </div>
+        </div>
+        <div style="text-align:center; margin: 8px 0 16px;">
+          <div id="timer" class="timer">00:00</div>
+          <div class="meta">Ciclos concluídos: <b id="ciclosCount">0</b></div>
+        </div>
+        <div class="row" style="justify-content:center;">
+          <button id="btnStart" class="btn">▶️ Iniciar</button>
+          <button id="btnPause" class="btn secondary" disabled>⏯ Pausar/Retomar</button>
+          <button id="btnStop" class="btn danger" disabled>⏹ Parar</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="title">Fila do ciclo</h3>
+        <ul id="fila"></ul>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    // ====== 1) Firebase SDK via CDN ======
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, enableIndexedDbPersistence, collection, query, orderBy, onSnapshot, addDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // ====== 2) SUA CONFIGURAÇÃO DO FIREBASE ======
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+      apiKey: "AIzaSyC9kJ0-CBniLnmy-CAlsYdJ-I5xSWdhWgw",
+      authDomain: "pomodoro-estudos.firebaseapp.com",
+      projectId: "pomodoro-estudos",
+      storageBucket: "pomodoro-estudos.firebasestorage.app",
+      messagingSenderId: "1012426043693",
+      appId: "1:1012426043693:web:56cd7ccecfb61ffd98a3a4",
+      measurementId: "G-8WR1C80KCN"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Offline (opcional, mas útil em celular)
+    enableIndexedDbPersistence(db).catch(() => {/* pode falhar em alguns navegadores; seguir sem offline */});
+
+    // ====== 3) Estado global simples ======
+    let user = null;                 // usuário logado
+    let editId = null;               // disciplina em edição
+    let disciplinas = [];            // cache atual (snapshot)
+
+    let running = false, paused = false, timerId = null;
+    let idx = 0;                     // índice da disciplina atual no ciclo
+    let fase = "estudo";            // "estudo" | "pausa"
+    let segundos = 0;
+
+    // ====== 4) Utilidades de UI ======
+    const $ = (id) => document.getElementById(id);
+    const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
+    function setPage(page){
+      $("pageDisciplinas").classList.toggle("hidden", page!=="disciplinas");
+      $("pageExecucao").classList.toggle("hidden", page!=="execucao");
+    }
+
+    function paintLista(){
+      const ul = $("lista");
+      ul.innerHTML = "";
+      disciplinas.forEach(d => {
+        const li = document.createElement('li');
+        li.innerHTML = `<div style="text-align:left">
+            <div><b>${d.nome}</b></div>
+            <div class="meta">${d.estudo} min estudo • ${d.pausa} min pausa • Concluída: <b>${d.concluidas||0}x</b></div>
+          </div>
+          <div class="row">
+            <button class="btn secondary" data-edit="${d.id}">✏️</button>
+            <button class="btn danger" data-del="${d.id}">🗑</button>
+          </div>`;
+        ul.appendChild(li);
+      });
+
+      // Eventos de editar/excluir
+      ul.querySelectorAll('[data-edit]').forEach(btn=>btn.addEventListener('click', async (e)=>{
+        const id = e.currentTarget.getAttribute('data-edit');
+        const d = disciplinas.find(x=>x.id===id);
+        if(!d) return;
+        $("nome").value = d.nome; $("estudo").value = d.estudo; $("pausa").value = d.pausa;
+        editId = id; $("btnAdd").classList.add('hidden'); $("btnSaveEdit").classList.remove('hidden'); $("btnCancelEdit").classList.remove('hidden');
+      }));
+      ul.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click', async (e)=>{
+        const id = e.currentTarget.getAttribute('data-del');
+        if(confirm('Excluir esta disciplina?')){
+          await deleteDoc(doc(db, 'users', user.uid, 'subjects', id));
+        }
+      }));
+
+      // Atualiza fila
+      const fila = $("fila");
+      fila.innerHTML = "";
+      disciplinas.forEach((d,i)=>{
+        const li = document.createElement('li');
+        li.innerHTML = `<div style="text-align:left"><b>${i+1}. ${d.nome}</b> <span class="meta">(${d.estudo}+${d.pausa})</span></div>`;
+        fila.appendChild(li);
+      });
+    }
+
+    function resetEditor(){
+      $("nome").value = ""; $("estudo").value = 50; $("pausa").value = 10; editId = null;
+      $("btnAdd").classList.remove('hidden'); $("btnSaveEdit").classList.add('hidden'); $("btnCancelEdit").classList.add('hidden');
+    }
+
+    function paintExec(){
+      const d = disciplinas[idx];
+      if(!d){ $("disciplinaAtual").innerText = '—'; $("fasePill").innerText = '—'; $("timer").innerText = '00:00'; return; }
+      $("disciplinaAtual").innerText = d.nome;
+      $("fasePill").innerText = fase === 'estudo' ? 'Estudo' : 'Pausa';
+      $("timer").innerText = fmt(segundos);
+    }
+
+    function toggleExecButtons(state){
+      // state: 'idle' | 'running'
+      const runningState = state==='running';
+      $("btnStart").disabled = runningState;
+      $("btnPause").disabled = !runningState;
+      $("btnStop").disabled = !runningState;
+    }
+
+    // ====== 5) Autenticação ======
+    async function signInGoogle(){
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    }
+    async function signOutUser(){ await signOut(auth); }
+
+    onAuthStateChanged(auth, async (u)=>{
+      user = u || null;
+      if(!user){
+        $("userLabel").innerText = 'Desconectado';
+        $("btnSignIn").classList.remove('hidden');
+        $("btnSignOut").classList.add('hidden');
+        setPage('disciplinas');
+        disciplinas = []; paintLista();
+        $("ciclosCount").innerText = '0';
+        return;
+      }
+
+      $("userLabel").innerText = user.displayName || user.email;
+      $("btnSignIn").classList.add('hidden');
+      $("btnSignOut").classList.remove('hidden');
+
+      // Garante doc raiz do usuário
+      const uref = doc(db, 'users', user.uid);
+      const uSnap = await getDoc(uref);
+      if(!uSnap.exists()) await setDoc(uref, { cyclesCompleted: 0, createdAt: serverTimestamp() });
+
+      // Ouve contador de ciclos
+      onSnapshot(uref, (snap)=>{
+        const data = snap.data() || {}; $("ciclosCount").innerText = data.cyclesCompleted || 0;
+      });
+
+      // Ouve disciplinas em tempo real (ordenadas por criação)
+      const q = query(collection(db, 'users', user.uid, 'subjects'), orderBy('orderIndex'));
+      onSnapshot(q, (snap)=>{
+        disciplinas = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+        paintLista();
+      });
+    });
+
+    // ====== 6) CRUD Disciplinas ======
+    $("btnAdd").addEventListener('click', async ()=>{
+      if(!user) return alert('Faça login com Google.');
+      const nome = $("nome").value.trim();
+      const estudo = parseInt($("estudo").value,10);
+      const pausa = parseInt($("pausa").value,10);
+      if(!nome || !estudo || !pausa) return alert('Preencha nome, estudo e pausa.');
+      await addDoc(collection(db, 'users', user.uid, 'subjects'), {
+        nome, estudo, pausa, concluidas: 0, orderIndex: Date.now(), createdAt: serverTimestamp()
+      });
+      resetEditor();
+    });
+
+    $("btnSaveEdit").addEventListener('click', async ()=>{
+      if(!editId) return; if(!user) return;
+      const nome = $("nome").value.trim();
+      const estudo = parseInt($("estudo").value,10);
+      const pausa = parseInt($("pausa").value,10);
+      if(!nome || !estudo || !pausa) return alert('Preencha nome, estudo e pausa.');
+      await updateDoc(doc(db, 'users', user.uid, 'subjects', editId), { nome, estudo, pausa });
+      resetEditor();
+    });
+    $("btnCancelEdit").addEventListener('click', resetEditor);
+
+    // ====== 7) Timer & Ciclos ======
+    function startCycle(){
+      if(!user) return alert('Faça login com Google.');
+      if(disciplinas.length===0) return alert('Cadastre ao menos uma disciplina.');
+      running = true; paused = false; idx = 0; fase = 'estudo'; segundos = disciplinas[0].estudo * 60; paintExec(); toggleExecButtons('running'); tick();
+    }
+
+    function tick(){
+      clearInterval(timerId);
+      timerId = setInterval(async ()=>{
+        if(paused) return; // mantém tempo congelado
+        segundos--; $("timer").innerText = fmt(segundos);
+        if(segundos <= 0){
+          clearInterval(timerId);
+          const d = disciplinas[idx];
+          if(fase === 'estudo'){
+            // incrementa contador da disciplina
+            await updateDoc(doc(db, 'users', user.uid, 'subjects', d.id), { concluidas: increment(1), lastDone: serverTimestamp() });
+            // muda para pausa
+            fase = 'pausa'; $("fasePill").innerText = 'Pausa'; segundos = (d.pausa || 1) * 60; $("timer").innerText = fmt(segundos); tick();
+          } else {
+            // próxima disciplina
+            idx++;
+            if(idx >= disciplinas.length){
+              // ciclo completo
+              await updateDoc(doc(db, 'users', user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
+              idx = 0; // recomeça
+            }
+            fase = 'estudo';
+            const d2 = disciplinas[idx];
+            $("disciplinaAtual").innerText = d2?.nome || '—';
+            $("fasePill").innerText = 'Estudo';
+            segundos = (d2?.estudo || 1) * 60; $("timer").innerText = fmt(segundos); tick();
+          }
+        }
+      }, 1000);
+    }
+
+    function pauseResume(){ paused = !paused; }
+    function stopAll(){ running=false; paused=false; clearInterval(timerId); $("timer").innerText='00:00'; $("disciplinaAtual").innerText='—'; $("fasePill").innerText='—'; toggleExecButtons('idle'); }
+
+    // Botões & Tabs
+    $("tabDisciplinas").addEventListener('click', ()=>setPage('disciplinas'));
+    $("tabExecucao").addEventListener('click', ()=>setPage('execucao'));
+    $("btnStart").addEventListener('click', ()=>{ startCycle(); });
+    $("btnPause").addEventListener('click', ()=>{ pauseResume(); });
+    $("btnStop").addEventListener('click', ()=>{ stopAll(); });
+    $("btnSignIn").addEventListener('click', ()=>{ signInGoogle().catch(err=>alert('Falha no login: '+err.message)); });
+    $("btnSignOut").addEventListener('click', ()=>{ stopAll(); signOutUser(); });
+
+    // Página inicial
+    setPage('disciplinas');
+  </script>
+</body>
+</html>
