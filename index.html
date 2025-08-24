@@ -1,595 +1,542 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pomodoro de Estudos</title>
-  <style>
-    :root{
-      --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
-    }
-    [data-theme="dark"]{
-      --bg:#0f172a; --card:#111827; --text:#e5e7eb; --accent:#3b82f6; --muted:#94a3b8; --border:#1f2937; --soft:#0b1220;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);transition:background .25s,color .25s}
-    header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,.08);position:sticky;top:0;z-index:20}
-    header h1{margin:0;font-size:18px}
-    .auth{display:flex;gap:8px;align-items:center}
-    .btn{border:0;padding:10px 12px;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;font-weight:700}
-    .btn.secondary{background:var(--soft);color:var(--text)}
-    .btn.danger{background:#ef4444}
-    .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    .container{max-width:1000px;margin:20px auto;padding:0 12px}
-    nav.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-    .tab-active{outline:2px solid var(--accent)}
-    .card{background:var(--card);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:16px}
-    .grid{display:grid;gap:12px}
-    @media (min-width:780px){ .grid-cols-2{grid-template-columns:1fr 1fr} }
-    input,select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);outline:none}
-    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-    ul{list-style:none;margin:0;padding:0}
-    li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:var(--card)}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .meta{color:var(--muted);font-size:12px}
-    .pill{background:#eef2ff;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:12px}
-    [data-theme="dark"] .pill{background:#1e3a8a;color:#dbeafe}
-    .hidden{display:none}
-    .title{margin:0 0 8px 0;font-size:18px}
-    .timer{font-size:52px;font-weight:900;letter-spacing:2px;text-align:center}
-    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:var(--soft);border:1px solid var(--border);padding:2px 6px;border-radius:6px}
-    .hint{font-size:12px;color:var(--muted)}
-  </style>
-</head>
-<body data-theme="light">
-  <header>
-    <h1>Pomodoro de Estudos</h1>
-    <div class="auth">
-      <span id="userLabel" class="meta">Desconectado</span>
-      <button id="btnSignIn" class="btn">Entrar com Google</button>
-      <button id="btnSignOut" class="btn secondary hidden">Sair</button>
-      <button id="btnTheme" class="btn secondary" title="Alternar tema">🌓</button>
-    </div>
-  </header>
-
-  <div class="container">
-    <nav class="tabs">
-      <button class="btn secondary tab-active" id="tabConcurso">🏆 Concurso/Trilha</button>
-      <button class="btn secondary" id="tabDisciplinas">📘 Disciplinas</button>
-      <button class="btn secondary" id="tabExecucao">⏱ Execução</button>
-    </nav>
-
-    <!-- 1) CONCURSO / TRILHA -->
-    <section id="pageConcurso" class="">
-      <div class="card">
-        <h2 class="title">Cadastrar Concurso / Trilha</h2>
-        <div class="grid grid-cols-2">
-          <div>
-            <label for="nomeConcurso">Nome do Concurso / Trilha</label>
-            <input id="nomeConcurso" placeholder="Ex.: TCE, CNU, Concurso XYZ" />
-            <div class="hint">Dica: use nomes curtos. Ex.: “PF-ADM”, “TRT-24”.</div>
-          </div>
-          <div class="row" style="align-self:end;">
-            <button id="btnAddConcurso" class="btn">Adicionar</button>
-          </div>
-        </div>
+  <!DOCTYPE html>
+  <html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pomodoro de Estudos</title>
+    <style>
+      :root{
+        --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
+      }
+      [data-theme="dark"]{
+        --bg:#0f172a; --card:#111827; --text:#e5e7eb; --accent:#3b82f6; --muted:#94a3b8; --border:#1f2937; --soft:#0b1220;
+      }
+      *{box-sizing:border-box}
+      body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);transition:background .25s,color .25s}
+      header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,.08);position:sticky;top:0;z-index:20}
+      header h1{margin:0;font-size:18px}
+      .auth{display:flex;gap:8px;align-items:center}
+      .btn{border:0;padding:10px 12px;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;font-weight:700}
+      .btn.secondary{background:var(--soft);color:var(--text)}
+      .btn.danger{background:#ef4444}
+      .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+      .btn:disabled{opacity:.6;cursor:not-allowed}
+      .container{max-width:1000px;margin:20px auto;padding:0 12px}
+      nav.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+      .tab-active{outline:2px solid var(--accent)}
+      .card{background:var(--card);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:16px}
+      .grid{display:grid;gap:12px}
+      @media (min-width:780px){ .grid-cols-2{grid-template-columns:1fr 1fr} }
+      input,select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);outline:none}
+      label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+      ul{list-style:none;margin:0;padding:0}
+      li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:var(--card)}
+      .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+      .meta{color:var(--muted);font-size:12px}
+      .pill{background:#eef2ff;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:12px}
+      [data-theme="dark"] .pill{background:#1e3a8a;color:#dbeafe}
+      .hidden{display:none}
+      .title{margin:0 0 8px 0;font-size:18px}
+      .timer{font-size:52px;font-weight:900;letter-spacing:2px;text-align:center}
+      .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:var(--soft);border:1px solid var(--border);padding:2px 6px;border-radius:6px}
+      .hint{font-size:12px;color:var(--muted)}
+    </style>
+  </head>
+  <body data-theme="light">
+    <header>
+      <h1>Pomodoro de Estudos</h1>
+      <div class="auth">
+        <span id="userLabel" class="meta">Desconectado</span>
+        <button id="btnSignIn" class="btn">Entrar com Google</button>
+        <button id="btnSignOut" class="btn secondary hidden">Sair</button>
+        <button id="btnTheme" class="btn secondary" title="Alternar tema">🌓</button>
       </div>
+    </header>
 
-      <div class="card">
-        <div class="row" style="justify-content:space-between;">
-          <h2 class="title">Minhas Trilhas</h2>
-          <div class="meta">Selecione uma trilha para gerenciar disciplinas e executar o Pomodoro.</div>
-        </div>
-        <ul id="listaConcursos"></ul>
-      </div>
-      <div class="meta">Ciclos concluídos (todas as trilhas): <b id="ciclosCount">0</b></div>
-    </section>
+    <div class="container">
+      <nav class="tabs">
+        <button class="btn secondary tab-active" id="tabConcurso">🏆 Concurso/Trilha</button>
+        <button class="btn secondary" id="tabDisciplinas">📘 Disciplinas</button>
+        <button class="btn secondary" id="tabExecucao">⏱ Execução</button>
+      </nav>
 
-    <!-- 2) DISCIPLINAS (por Concurso selecionado) -->
-    <section id="pageDisciplinas" class="hidden">
-      <div class="card">
-        <h2 class="title">Cadastrar / Editar Disciplina</h2>
-        <div class="grid">
-          <div>
-            <label for="selectConcurso">Concurso / Trilha</label>
-            <select id="selectConcurso"></select>
-            <div class="hint">Apenas disciplinas do concurso selecionado serão listadas abaixo e usadas na Execução.</div>
-          </div>
-          <div>
-            <label for="nome">Nome da disciplina</label>
-            <input id="nome" placeholder="Ex.: Português, RLM, Direito Adm." />
-          </div>
+      <!-- 1) CONCURSO / TRILHA -->
+      <section id="pageConcurso" class="">
+        <div class="card">
+          <h2 class="title">Cadastrar Concurso / Trilha</h2>
           <div class="grid grid-cols-2">
             <div>
-              <label for="estudo">Minutos de estudo</label>
-              <input id="estudo" type="number" min="1" value="50" />
+              <label for="nomeConcurso">Nome do Concurso / Trilha</label>
+              <input id="nomeConcurso" placeholder="Ex.: TCE, CNU, Concurso XYZ" />
+              <div class="hint">Dica: use nomes curtos. Ex.: “PF-ADM”, “TRT-24”.</div>
+            </div>
+            <div class="row" style="align-self:end;">
+              <button id="btnAddConcurso" class="btn">Adicionar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <h2 class="title">Minhas Trilhas</h2>
+            <div class="meta">Selecione uma trilha para gerenciar disciplinas e executar o Pomodoro.</div>
+          </div>
+          <ul id="listaConcursos"></ul>
+        </div>
+      </section>
+
+      <!-- 2) DISCIPLINAS (por Concurso selecionado) -->
+      <section id="pageDisciplinas" class="hidden">
+        <div class="card">
+          <h2 class="title">Cadastrar / Editar Disciplina</h2>
+          <div class="grid">
+            <div>
+              <label for="selectConcurso">Concurso / Trilha</label>
+              <select id="selectConcurso"></select>
+              <div class="hint">Apenas disciplinas do concurso selecionado serão listadas abaixo e usadas na Execução.</div>
             </div>
             <div>
-              <label for="pausa">Minutos de pausa</label>
-              <input id="pausa" type="number" min="1" value="10" />
+              <label for="nome">Nome da disciplina</label>
+              <input id="nome" placeholder="Ex.: Português, RLM, Direito Adm." />
+            </div>
+            <div class="grid grid-cols-2">
+              <div>
+                <label for="estudo">Minutos de estudo</label>
+                <input id="estudo" type="number" min="1" value="50" />
+              </div>
+              <div>
+                <label for="pausa">Minutos de pausa</label>
+                <input id="pausa" type="number" min="1" value="10" />
+              </div>
+            </div>
+            <div class="row">
+              <button id="btnAddDisciplina" class="btn">Adicionar</button>
+              <button id="btnSaveEdit" class="btn hidden">Salvar edição</button>
+              <button id="btnCancelEdit" class="btn secondary hidden">Cancelar</button>
             </div>
           </div>
-          <div class="row">
-            <button id="btnAddDisciplina" class="btn">Adicionar</button>
-            <button id="btnSaveEdit" class="btn hidden">Salvar edição</button>
-            <button id="btnCancelEdit" class="btn secondary hidden">Cancelar</button>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <h2 class="title">Disciplinas da Trilha</h2>
+            <div class="meta">Ordem de execução segue a ordem de criação (<span class="kbd">orderIndex</span>).</div>
+          </div>
+          <ul id="listaDisciplinas"></ul>
+        </div>
+      </section>
+
+      <!-- 3) EXECUÇÃO -->
+      <section id="pageExecucao" class="hidden">
+        <div class="card">
+          <div class="row" style="justify-content:space-between;">
+            <div>
+              <div class="meta">Concurso / Trilha</div>
+              <h2 id="execConcursoNome" class="title">—</h2>
+            </div>
+            <div>
+              <div class="meta">Fase</div>
+              <span id="fasePill" class="pill">—</span>
+            </div>
+          </div>
+
+          <div class="row" style="gap:12px;margin:8px 0;">
+            <label class="meta" for="execSelectConcurso">Trocar trilha:</label>
+            <select id="execSelectConcurso"></select>
+          </div>
+
+          <div style="margin:12px 0 16px;">
+            <div id="timer" class="timer">00:00</div>
+            <div class="meta">Ciclos concluídos (todas as trilhas): <b id="ciclosCount">0</b></div>
+          </div>
+
+          <div class="row" style="justify-content:center;">
+            <button id="btnStart" class="btn">▶️ Iniciar</button>
+            <button id="btnPause" class="btn secondary" disabled>⏯ Pausar/Retomar</button>
+            <button id="btnStop" class="btn danger" disabled>⏹ Parar</button>
           </div>
         </div>
-      </div>
 
-      <div class="card">
-        <div class="row" style="justify-content:space-between;">
-          <h2 class="title">Disciplinas da Trilha</h2>
-          <div class="meta">Ordem de execução segue a ordem de criação (<span class="kbd">orderIndex</span>).</div>
+        <div class="card">
+          <h3 class="title">Fila do ciclo (trilha selecionada)</h3>
+          <ul id="fila"></ul>
         </div>
-        <ul id="listaDisciplinas"></ul>
-      </div>
-    </section>
+      </section>
+    </div>
 
-    <!-- 3) EXECUÇÃO -->
-    <section id="pageExecucao" class="hidden">
-      <div class="card">
-        <div class="row" style="justify-content:space-between;">
-          <div>
-            <div class="meta">Concurso / Trilha</div>
-            <h2 id="execConcursoNome" class="title">—</h2>
-          </div>
-          <div>
-            <div class="meta">Fase</div>
-            <span id="fasePill" class="pill">—</span>
-          </div>
-        </div>
+    <script type="module">
+      // ===== Firebase (CDN) =====
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+      import {
+        getFirestore, enableIndexedDbPersistence, collection, query, where, orderBy, onSnapshot,
+        addDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, getDocs
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        <div class="row" style="gap:12px;margin:8px 0;">
-          <label class="meta" for="execSelectConcurso">Trocar trilha:</label>
-          <select id="execSelectConcurso"></select>
-        </div>
-
-        <div style="margin:12px 0 16px;">
-          <div id="timer" class="timer">00:00</div>
-        </div>
-
-        <div class="row" style="justify-content:center;">
-          <button id="btnStart" class="btn">▶️ Iniciar</button>
-          <button id="btnPause" class="btn secondary" disabled>⏯ Pausar/Retomar</button>
-          <button id="btnStop" class="btn danger" disabled>⏹ Parar</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 class="title">Fila do ciclo (trilha selecionada)</h3>
-        <ul id="fila"></ul>
-      </div>
-    </section>
-  </div>
-
-  <script type="module">
-    // ===== Firebase (CDN) =====
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import {
-      getFirestore, enableIndexedDbPersistence, collection, query, where, orderBy, onSnapshot,
-      addDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, getDocs
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    // ==== SUA CONFIG FIREBASE (usei a que você enviou) ====
-    const firebaseConfig = {
-      apiKey: "AIzaSyC9kJ0-CBniLnmy-CAlsYdJ-I5xSWdhWgw",
-      authDomain: "pomodoro-estudos.firebaseapp.com",
-      projectId: "pomodoro-estudos",
-      storageBucket: "pomodoro-estudos.firebasestorage.app",
-      messagingSenderId: "1012426043693",
-      appId: "1:1012426043693:web:56cd7ccecfb61ffd98a3a4",
-      measurementId: "G-8WR1C80KCN"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    enableIndexedDbPersistence(db).catch(()=>{});
-
-    // ===== Estado =====
-    let user = null;
-    let concursos = [];        // [{id, nome}]
-    let disciplinas = [];      // todas as disciplinas (vamos filtrar por concurso)
-    let selectedConcursoId = ""; // controle global de seleção
-    let editDisciplinaId = null;
-    let disciplinaAtualIndex = 0; // começa na primeira da fila
-
-    // Execução
-    let running=false, paused=false, timerId=null, idx=0, fase='estudo', segundos=0;
-
-    // ===== Utils =====
-    const $ = (id)=>document.getElementById(id);
-    const fmt = (s)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-    function setPage(page){
-      const map = {
-        concurso: $('pageConcurso'),
-        disciplinas: $('pageDisciplinas'),
-        execucao: $('pageExecucao'),
+      // ==== SUA CONFIG FIREBASE (usei a que você enviou) ====
+      const firebaseConfig = {
+        apiKey: "AIzaSyC9kJ0-CBniLnmy-CAlsYdJ-I5xSWdhWgw",
+        authDomain: "pomodoro-estudos.firebaseapp.com",
+        projectId: "pomodoro-estudos",
+        storageBucket: "pomodoro-estudos.firebasestorage.app",
+        messagingSenderId: "1012426043693",
+        appId: "1:1012426043693:web:56cd7ccecfb61ffd98a3a4",
+        measurementId: "G-8WR1C80KCN"
       };
-      Object.entries(map).forEach(([k,el])=>el.classList.toggle('hidden', k!==page));
-      // abas visuais
-      $('tabConcurso').classList.toggle('tab-active', page==='concurso');
-      $('tabDisciplinas').classList.toggle('tab-active', page==='disciplinas');
-      $('tabExecucao').classList.toggle('tab-active', page==='execucao');
-    }
-    function persistTheme(theme){ try{ localStorage.setItem('theme', theme);}catch{} }
-    function loadTheme(){ try{ return localStorage.getItem('theme') || 'light'; }catch{ return 'light'; } }
-    function applyTheme(theme){ document.body.setAttribute('data-theme', theme); }
 
-    // ===== Tema (persistente) =====
-    applyTheme(loadTheme());
-    $('btnTheme').addEventListener('click', ()=>{
-      const next = document.body.getAttribute('data-theme')==='light'?'dark':'light';
-      applyTheme(next); persistTheme(next);
-    });
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      enableIndexedDbPersistence(db).catch(()=>{});
 
-    // ===== Tabs
-    $('tabConcurso').addEventListener('click', ()=>setPage('concurso'));
-    $('tabDisciplinas').addEventListener('click', ()=>setPage('disciplinas'));
-    $('tabExecucao').addEventListener('click', ()=>setPage('execucao'));
+      // ===== Estado =====
+      let user = null;
+      let concursos = [];        // [{id, nome}]
+      let disciplinas = [];      // todas as disciplinas (vamos filtrar por concurso)
+      let selectedConcursoId = ""; // controle global de seleção
+      let editDisciplinaId = null;
 
-    // ===== Auth
-    async function signInGoogle(){ await signInWithPopup(auth, new GoogleAuthProvider()); }
-    async function signOutUser(){ await signOut(auth); }
+      // Execução
+      let running=false, paused=false, timerId=null, idx=0, fase='estudo', segundos=0;
 
-    $('btnSignIn').addEventListener('click', ()=>signInGoogle().catch(e=>alert('Falha no login: '+e.message)));
-    $('btnSignOut').addEventListener('click', ()=>{ stopAll(); signOutUser(); });
-
-    onAuthStateChanged(auth, async (u)=>{
-      user = u || null;
-
-      if(user){
-        await carregarEstado();
+      // ===== Utils =====
+      const $ = (id)=>document.getElementById(id);
+      const fmt = (s)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+      function setPage(page){
+        const map = {
+          concurso: $('pageConcurso'),
+          disciplinas: $('pageDisciplinas'),
+          execucao: $('pageExecucao'),
+        };
+        Object.entries(map).forEach(([k,el])=>el.classList.toggle('hidden', k!==page));
+        // abas visuais
+        $('tabConcurso').classList.toggle('tab-active', page==='concurso');
+        $('tabDisciplinas').classList.toggle('tab-active', page==='disciplinas');
+        $('tabExecucao').classList.toggle('tab-active', page==='execucao');
       }
+      function persistTheme(theme){ try{ localStorage.setItem('theme', theme);}catch{} }
+      function loadTheme(){ try{ return localStorage.getItem('theme') || 'light'; }catch{ return 'light'; } }
+      function applyTheme(theme){ document.body.setAttribute('data-theme', theme); }
 
-
-      if(!user){
-        $('userLabel').innerText = 'Desconectado';
-        $('btnSignIn').classList.remove('hidden');
-        $('btnSignOut').classList.add('hidden');
-        concursos=[]; disciplinas=[]; selectedConcursoId=""; paintConcursos(); paintDisciplinas(); paintExecInfo();
-        $('ciclosCount').innerText='0';
-        setPage('concurso');
-        return;
-      }
-
-      $('userLabel').innerText = user.displayName || user.email;
-      $('btnSignIn').classList.add('hidden');
-      $('btnSignOut').classList.remove('hidden');
-
-      // raiz do user
-      const uref = doc(db, 'users', user.uid);
-      const snap = await getDoc(uref);
-      if(!snap.exists()) await setDoc(uref, { cyclesCompleted: 0, createdAt: serverTimestamp() });
-
-      // contador global de ciclos
-      onSnapshot(uref, (s)=>{ $('ciclosCount').innerText = s.data()?.cyclesCompleted || 0; });
-
-      // concursos
-      onSnapshot(collection(db,'users',user.uid,'concursos'), (qs)=>{
-        concursos = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.nome||'').localeCompare(b.nome||''));
-        // se nada selecionado, tenta selecionar o primeiro
-        if(!selectedConcursoId && concursos.length>0) selectedConcursoId = concursos[0].id;
-        paintConcursos();
-        paintConcursoSelectors();
-        paintDisciplinas();      // refiltra
-        paintExecInfo();         // atualiza nome
+      // ===== Tema (persistente) =====
+      applyTheme(loadTheme());
+      $('btnTheme').addEventListener('click', ()=>{
+        const next = document.body.getAttribute('data-theme')==='light'?'dark':'light';
+        applyTheme(next); persistTheme(next);
       });
 
-      // disciplinas (todas; filtramos localmente por selectedConcursoId)
-      onSnapshot(collection(db,'users',user.uid,'subjects'), (qs)=>{
-        disciplinas = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.orderIndex||0)-(b.orderIndex||0));
-        paintDisciplinas();
-        paintExecQueue();
-      });
-    });
+      // ===== Tabs
+      $('tabConcurso').addEventListener('click', ()=>setPage('concurso'));
+      $('tabDisciplinas').addEventListener('click', ()=>setPage('disciplinas'));
+      $('tabExecucao').addEventListener('click', ()=>setPage('execucao'));
 
+      // ===== Auth
+      async function signInGoogle(){ await signInWithPopup(auth, new GoogleAuthProvider()); }
+      async function signOutUser(){ await signOut(auth); }
 
+      $('btnSignIn').addEventListener('click', ()=>signInGoogle().catch(e=>alert('Falha no login: '+e.message)));
+      $('btnSignOut').addEventListener('click', ()=>{ stopAll(); signOutUser(); });
 
-    // ===== CONCURSOS =====
-    $('btnAddConcurso').addEventListener('click', async ()=>{
-      if(!user) return alert('Faça login.');
-      const nome = $('nomeConcurso').value.trim();
-      if(!nome) return alert('Informe um nome.');
-      await addDoc(collection(db,'users',user.uid,'concursos'), { nome, createdAt: serverTimestamp() });
-      $('nomeConcurso').value = '';
-    });
+      onAuthStateChanged(auth, async (u)=>{
+        user = u || null;
 
-    function paintConcursos(){
-      const ul = $('listaConcursos'); ul.innerHTML='';
-      concursos.forEach(c=>{
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <div style="text-align:left">
-            <b>${c.nome}</b>
-            <div class="meta">ID: <span class="kbd">${c.id}</span></div>
-          </div>
-          <div class="row">
-            <button class="btn ghost" data-select="${c.id}" title="Selecionar">Selecionar</button>
-            <button class="btn secondary" data-edit="${c.id}" title="Renomear">✏️</button>
-            <button class="btn danger" data-del="${c.id}" title="Excluir">🗑</button>
-          </div>`;
-        ul.appendChild(li);
-      });
-
-      // selecionar
-      ul.querySelectorAll('[data-select]').forEach(b=>b.addEventListener('click', (e)=>{
-        selectedConcursoId = e.currentTarget.getAttribute('data-select');
-        paintConcursoSelectors();
-        paintDisciplinas();
-        paintExecInfo();
-        paintExecQueue();
-        // já leva o usuário para Disciplinas
-        setPage('disciplinas');
-      }));
-
-      // renomear
-      ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', async (e)=>{
-        const id = e.currentTarget.getAttribute('data-edit');
-        const c = concursos.find(x=>x.id===id);
-        const novo = prompt('Novo nome da trilha:', c?.nome || '');
-        if(novo && user){
-          await updateDoc(doc(db,'users',user.uid,'concursos',id), { nome: novo.trim() });
+        if(!user){
+          $('userLabel').innerText = 'Desconectado';
+          $('btnSignIn').classList.remove('hidden');
+          $('btnSignOut').classList.add('hidden');
+          concursos=[]; disciplinas=[]; selectedConcursoId=""; paintConcursos(); paintDisciplinas(); paintExecInfo();
+          $('ciclosCount').innerText='0';
+          setPage('concurso');
+          return;
         }
-      }));
 
-      // excluir (bloqueia se houver disciplinas vinculadas)
-      ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async (e)=>{
-        if(!user) return;
-        const id = e.currentTarget.getAttribute('data-del');
-        const has = disciplinas.some(d=>d.concursoId===id);
-        if(has){ alert('Não é possível excluir: existem disciplinas vinculadas a esta trilha. Exclua-as primeiro.'); return; }
-        if(confirm('Excluir esta trilha?')){
-          await deleteDoc(doc(db,'users',user.uid,'concursos',id));
-          if(selectedConcursoId===id) selectedConcursoId="";
+        $('userLabel').innerText = user.displayName || user.email;
+        $('btnSignIn').classList.add('hidden');
+        $('btnSignOut').classList.remove('hidden');
+
+        // raiz do user
+        const uref = doc(db, 'users', user.uid);
+        const snap = await getDoc(uref);
+        if(!snap.exists()) await setDoc(uref, { cyclesCompleted: 0, createdAt: serverTimestamp() });
+
+        // contador global de ciclos
+        onSnapshot(uref, (s)=>{ $('ciclosCount').innerText = s.data()?.cyclesCompleted || 0; });
+
+        // concursos
+        onSnapshot(collection(db,'users',user.uid,'concursos'), (qs)=>{
+          concursos = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.nome||'').localeCompare(b.nome||''));
+          // se nada selecionado, tenta selecionar o primeiro
+          if(!selectedConcursoId && concursos.length>0) selectedConcursoId = concursos[0].id;
+          paintConcursos();
+          paintConcursoSelectors();
+          paintDisciplinas();      // refiltra
+          paintExecInfo();         // atualiza nome
+        });
+
+        // disciplinas (todas; filtramos localmente por selectedConcursoId)
+        onSnapshot(collection(db,'users',user.uid,'subjects'), (qs)=>{
+          disciplinas = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.orderIndex||0)-(b.orderIndex||0));
+          paintDisciplinas();
+          paintExecQueue();
+        });
+      });
+
+      // ===== CONCURSOS =====
+      $('btnAddConcurso').addEventListener('click', async ()=>{
+        if(!user) return alert('Faça login.');
+        const nome = $('nomeConcurso').value.trim();
+        if(!nome) return alert('Informe um nome.');
+        await addDoc(collection(db,'users',user.uid,'concursos'), { nome, createdAt: serverTimestamp() });
+        $('nomeConcurso').value = '';
+      });
+
+      function paintConcursos(){
+        const ul = $('listaConcursos'); ul.innerHTML='';
+        concursos.forEach(c=>{
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <div style="text-align:left">
+              <b>${c.nome}</b>
+              <div class="meta">ID: <span class="kbd">${c.id}</span></div>
+            </div>
+            <div class="row">
+              <button class="btn ghost" data-select="${c.id}" title="Selecionar">Selecionar</button>
+              <button class="btn secondary" data-edit="${c.id}" title="Renomear">✏️</button>
+              <button class="btn danger" data-del="${c.id}" title="Excluir">🗑</button>
+            </div>`;
+          ul.appendChild(li);
+        });
+
+        // selecionar
+        ul.querySelectorAll('[data-select]').forEach(b=>b.addEventListener('click', (e)=>{
+          selectedConcursoId = e.currentTarget.getAttribute('data-select');
           paintConcursoSelectors();
           paintDisciplinas();
           paintExecInfo();
-        }
-      }));
-    }
+          paintExecQueue();
+          // já leva o usuário para Disciplinas
+          setPage('disciplinas');
+        }));
 
-    function paintConcursoSelectors(){
-      // seletor na página Disciplinas
-      const sel1 = $('selectConcurso');
-      sel1.innerHTML = '<option value="">— selecione uma trilha —</option>';
-      concursos.forEach(c=>{
-        const opt = document.createElement('option');
-        opt.value = c.id; opt.text = c.nome;
-        sel1.add(opt);
-      });
-      if(selectedConcursoId) sel1.value = selectedConcursoId;
-
-      // seletor na página Execução
-      const sel2 = $('execSelectConcurso');
-      sel2.innerHTML = '<option value="">— selecione —</option>';
-      concursos.forEach(c=>{
-        const opt = document.createElement('option');
-        opt.value = c.id; opt.text = c.nome;
-        sel2.add(opt);
-      });
-      if(selectedConcursoId) sel2.value = selectedConcursoId;
-
-      sel1.onchange = ()=>{ selectedConcursoId = sel1.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
-      sel2.onchange = ()=>{ selectedConcursoId = sel2.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
-    }
-
-    // ===== DISCIPLINAS =====
-    $('btnAddDisciplina').addEventListener('click', async ()=>{
-      if(!user) return alert('Faça login.');
-      const concursoId = $('selectConcurso').value;
-      if(!concursoId) return alert('Selecione uma trilha.');
-      const nome = $('nome').value.trim();
-      const estudo = parseInt($('estudo').value,10);
-      const pausa  = parseInt($('pausa').value,10);
-      if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
-      await addDoc(collection(db,'users',user.uid,'subjects'), {
-        nome, estudo, pausa, concursoId, concluidas: 0, orderIndex: Date.now(), createdAt: serverTimestamp()
-      });
-      resetDisciplinaEditor();
-    });
-
-    $('btnSaveEdit').addEventListener('click', async ()=>{
-      if(!user || !editDisciplinaId) return;
-      const nome = $('nome').value.trim();
-      const estudo = parseInt($('estudo').value,10);
-      const pausa  = parseInt($('pausa').value,10);
-      if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
-      await updateDoc(doc(db,'users',user.uid,'subjects',editDisciplinaId), { nome, estudo, pausa });
-      resetDisciplinaEditor();
-    });
-
-    $('btnCancelEdit').addEventListener('click', resetDisciplinaEditor);
-
-    function resetDisciplinaEditor(){
-      $('nome').value=''; $('estudo').value=50; $('pausa').value=10;
-      $('btnAddDisciplina').classList.remove('hidden');
-      $('btnSaveEdit').classList.add('hidden');
-      $('btnCancelEdit').classList.add('hidden');
-      editDisciplinaId = null;
-    }
-
-    function paintDisciplinas(){
-      const ul = $('listaDisciplinas'); ul.innerHTML='';
-      const list = disciplinas.filter(d=> d.concursoId === selectedConcursoId);
-      list.forEach(d=>{
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <div style="text-align:left">
-            <b>${d.nome}</b>
-            <div class="meta">${d.estudo} min estudo • ${d.pausa} min pausa • Concluída: <b>${d.concluidas||0}x</b></div>
-          </div>
-          <div class="row">
-            <button class="btn secondary" data-edit="${d.id}">✏️</button>
-            <button class="btn danger" data-del="${d.id}">🗑</button>
-          </div>`;
-        ul.appendChild(li);
-      });
-
-      // eventos
-      ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', e=>{
-        const id = e.currentTarget.getAttribute('data-edit');
-        const d = disciplinas.find(x=>x.id===id);
-        if(!d) return;
-        $('nome').value = d.nome; $('estudo').value = d.estudo; $('pausa').value = d.pausa;
-        editDisciplinaId = id;
-        $('btnAddDisciplina').classList.add('hidden');
-        $('btnSaveEdit').classList.remove('hidden');
-        $('btnCancelEdit').classList.remove('hidden');
-      }));
-      ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async e=>{
-        const id = e.currentTarget.getAttribute('data-del');
-        if(confirm('Excluir disciplina?')){
-          await deleteDoc(doc(db,'users',user.uid,'subjects',id));
-        }
-      }));
-
-      paintExecQueue();
-    }
-
-    // ===== EXECUÇÃO =====
-    function paintExecInfo(){
-      const nome = concursos.find(c=>c.id===selectedConcursoId)?.nome || '—';
-      $('execConcursoNome').innerText = nome;
-    }
-
-    function paintExecQueue(){
-      const fila = $('fila'); fila.innerHTML='';
-      const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
-      list.forEach((d,i)=>{
-        const li = document.createElement('li');
-        li.innerHTML = `<div><b>${i+1}. ${d.nome}</b> <span class="meta">(${d.estudo}+${d.pausa})</span></div>`;
-        fila.appendChild(li);
-
-        // 🔹 Aqui entra o "Executando"
-        if (i === disciplinaAtualIndex) {
-          li.innerHTML += " <span style='color:green'>(Executando)</span>";
-        }
-
-        fila.appendChild(li);
-      });
-    }
-
-    function paintTimer(){
-      $('timer').innerText = fmt(segundos);
-      $('fasePill').innerText = (fase==='estudo'?'Estudo':'Pausa');
-    }
-
-    function toggleExecButtons(state){
-      const runningState = state==='running';
-      $('btnStart').disabled = runningState;
-      $('btnPause').disabled = !runningState;
-      $('btnStop').disabled  = !runningState;
-    }
-
-    function startCycle(){
-      if(!user) return alert('Faça login.');
-      if(!selectedConcursoId) return alert('Selecione uma trilha.');
-      const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
-      if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
-
-      running = true; paused=false; idx=0; fase='estudo';
-      segundos = (list[0].estudo||1)*60;
-      paintExecInfo(); paintTimer(); toggleExecButtons('running');
-      tick();
-    }
-
-    function tick(){
-      clearInterval(timerId);
-      timerId = setInterval(async ()=>{
-        if(paused) return;
-        segundos--;
-        salvarEstado()
-        $('timer').innerText = fmt(segundos);
-        if(segundos<=0){
-          clearInterval(timerId);
-          const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
-          const d = list[idx];
-          if(!d){ stopAll(); return; }
-
-          if(fase==='estudo'){
-            // concluiu estudo desta disciplina
-            await updateDoc(doc(db,'users',user.uid,'subjects',d.id), { concluidas: increment(1), lastDone: serverTimestamp() });
-            fase='pausa';
-            segundos = (d.pausa||1)*60;
-            paintTimer();
-            tick();
-          } else {
-            // terminou pausa -> próxima disciplina
-            idx++;
-            disciplinaAtualIndex = idx;
-            paintExecQueue(); // redesenha a fila mostrando quem está "Executando"
-
-            if(idx>=list.length){
-              // ciclo completo da trilha
-              await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
-              idx=0; // recomeça
-            }
-            fase='estudo';
-            const d2 = disciplinas.filter(x=>x.concursoId===selectedConcursoId)[idx];
-            segundos = ((d2?.estudo)||1)*60;
-            paintTimer();
-            tick();
+        // renomear
+        ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', async (e)=>{
+          const id = e.currentTarget.getAttribute('data-edit');
+          const c = concursos.find(x=>x.id===id);
+          const novo = prompt('Novo nome da trilha:', c?.nome || '');
+          if(novo && user){
+            await updateDoc(doc(db,'users',user.uid,'concursos',id), { nome: novo.trim() });
           }
-        }
-      },1000);
-    }
-     
-    //import { getDatabase, ref, set } from "firebase/database";
-    import { getDatabase, ref as dbRef, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        }));
 
-    const dbRT = getDatabase(app); // já com sua config do Firebase
-
-    function salvarEstado() {
-      if (!user) return; // só salva se o usuário estiver logado
-      set(ref(dbRT, 'users/' + user.uid + '/execState'), {
-        disciplinaAtualIndex,
-        fase,
-        //segundosRestantes: 
-        segundos,
-        timestamp: Date.now()
-      });
-    }
-
-    async function carregarEstado(){
-        const ref = dbRef(db, `users/${user.uid}/execState`);
-        //const snap = await get(ref);
-        const snap = await get(dbRef(dbRT, `users/${user.uid}/execState`));
-        if(snap.exists()){
-            const data = snap.val();
-            selectedConcursoId = data.concursoId || selectedConcursoId;
-            disciplinaAtualIndex = data.disciplinaAtualIndex || 0;
-            fase = data.fase || 'estudo';
-            segundos = data.segundos || 0;
-
+        // excluir (bloqueia se houver disciplinas vinculadas)
+        ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async (e)=>{
+          if(!user) return;
+          const id = e.currentTarget.getAttribute('data-del');
+          const has = disciplinas.some(d=>d.concursoId===id);
+          if(has){ alert('Não é possível excluir: existem disciplinas vinculadas a esta trilha. Exclua-as primeiro.'); return; }
+          if(confirm('Excluir esta trilha?')){
+            await deleteDoc(doc(db,'users',user.uid,'concursos',id));
+            if(selectedConcursoId===id) selectedConcursoId="";
+            paintConcursoSelectors();
+            paintDisciplinas();
             paintExecInfo();
-            paintExecQueue();
-            paintTimer();
-        }
-    }
+          }
+        }));
+      }
 
+      function paintConcursoSelectors(){
+        // seletor na página Disciplinas
+        const sel1 = $('selectConcurso');
+        sel1.innerHTML = '<option value="">— selecione uma trilha —</option>';
+        concursos.forEach(c=>{
+          const opt = document.createElement('option');
+          opt.value = c.id; opt.text = c.nome;
+          sel1.add(opt);
+        });
+        if(selectedConcursoId) sel1.value = selectedConcursoId;
 
-    function pauseResume(){
-      if(!running) return;
-      paused = !paused;
-      $('btnPause').innerText = paused ? '▶️ Retomar' : '⏯ Pausar/Retomar';
-    }
+        // seletor na página Execução
+        const sel2 = $('execSelectConcurso');
+        sel2.innerHTML = '<option value="">— selecione —</option>';
+        concursos.forEach(c=>{
+          const opt = document.createElement('option');
+          opt.value = c.id; opt.text = c.nome;
+          sel2.add(opt);
+        });
+        if(selectedConcursoId) sel2.value = selectedConcursoId;
 
-    function stopAll(){
-      running=false; paused=false; clearInterval(timerId);
-      $('timer').innerText='00:00'; $('fasePill').innerText='—';
-      toggleExecButtons('idle');
-    }
+        sel1.onchange = ()=>{ selectedConcursoId = sel1.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
+        sel2.onchange = ()=>{ selectedConcursoId = sel2.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
+      }
 
-    $('btnStart').addEventListener('click', startCycle);
-    $('btnPause').addEventListener('click', pauseResume);
-    $('btnStop').addEventListener('click', stopAll);
+      // ===== DISCIPLINAS =====
+      $('btnAddDisciplina').addEventListener('click', async ()=>{
+        if(!user) return alert('Faça login.');
+        const concursoId = $('selectConcurso').value;
+        if(!concursoId) return alert('Selecione uma trilha.');
+        const nome = $('nome').value.trim();
+        const estudo = parseInt($('estudo').value,10);
+        const pausa  = parseInt($('pausa').value,10);
+        if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
+        await addDoc(collection(db,'users',user.uid,'subjects'), {
+          nome, estudo, pausa, concursoId, concluidas: 0, orderIndex: Date.now(), createdAt: serverTimestamp()
+        });
+        resetDisciplinaEditor();
+      });
 
-    // página inicial
-    setPage('concurso');
-  </script>
-</body>
-</html>
+      $('btnSaveEdit').addEventListener('click', async ()=>{
+        if(!user || !editDisciplinaId) return;
+        const nome = $('nome').value.trim();
+        const estudo = parseInt($('estudo').value,10);
+        const pausa  = parseInt($('pausa').value,10);
+        if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
+        await updateDoc(doc(db,'users',user.uid,'subjects',editDisciplinaId), { nome, estudo, pausa });
+        resetDisciplinaEditor();
+      });
+
+      $('btnCancelEdit').addEventListener('click', resetDisciplinaEditor);
+
+      function resetDisciplinaEditor(){
+        $('nome').value=''; $('estudo').value=50; $('pausa').value=10;
+        $('btnAddDisciplina').classList.remove('hidden');
+        $('btnSaveEdit').classList.add('hidden');
+        $('btnCancelEdit').classList.add('hidden');
+        editDisciplinaId = null;
+      }
+
+      function paintDisciplinas(){
+        const ul = $('listaDisciplinas'); ul.innerHTML='';
+        const list = disciplinas.filter(d=> d.concursoId === selectedConcursoId);
+        list.forEach(d=>{
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <div style="text-align:left">
+              <b>${d.nome}</b>
+              <div class="meta">${d.estudo} min estudo • ${d.pausa} min pausa • Concluída: <b>${d.concluidas||0}x</b></div>
+            </div>
+            <div class="row">
+              <button class="btn secondary" data-edit="${d.id}">✏️</button>
+              <button class="btn danger" data-del="${d.id}">🗑</button>
+            </div>`;
+          ul.appendChild(li);
+        });
+
+        // eventos
+        ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', e=>{
+          const id = e.currentTarget.getAttribute('data-edit');
+          const d = disciplinas.find(x=>x.id===id);
+          if(!d) return;
+          $('nome').value = d.nome; $('estudo').value = d.estudo; $('pausa').value = d.pausa;
+          editDisciplinaId = id;
+          $('btnAddDisciplina').classList.add('hidden');
+          $('btnSaveEdit').classList.remove('hidden');
+          $('btnCancelEdit').classList.remove('hidden');
+        }));
+        ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async e=>{
+          const id = e.currentTarget.getAttribute('data-del');
+          if(confirm('Excluir disciplina?')){
+            await deleteDoc(doc(db,'users',user.uid,'subjects',id));
+          }
+        }));
+
+        paintExecQueue();
+      }
+
+      // ===== EXECUÇÃO =====
+      function paintExecInfo(){
+        const nome = concursos.find(c=>c.id===selectedConcursoId)?.nome || '—';
+        $('execConcursoNome').innerText = nome;
+      }
+
+      function paintExecQueue(){
+        const fila = $('fila'); fila.innerHTML='';
+        const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
+        list.forEach((d,i)=>{
+          const li = document.createElement('li');
+          li.innerHTML = `<div><b>${i+1}. ${d.nome}</b> <span class="meta">(${d.estudo}+${d.pausa})</span></div>`;
+          fila.appendChild(li);
+        });
+      }
+
+      function paintTimer(){
+        $('timer').innerText = fmt(segundos);
+        $('fasePill').innerText = (fase==='estudo'?'Estudo':'Pausa');
+      }
+
+      function toggleExecButtons(state){
+        const runningState = state==='running';
+        $('btnStart').disabled = runningState;
+        $('btnPause').disabled = !runningState;
+        $('btnStop').disabled  = !runningState;
+      }
+
+      function startCycle(){
+        if(!user) return alert('Faça login.');
+        if(!selectedConcursoId) return alert('Selecione uma trilha.');
+        const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
+        if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
+
+        running = true; paused=false; idx=0; fase='estudo';
+        segundos = (list[0].estudo||1)*60;
+        paintExecInfo(); paintTimer(); toggleExecButtons('running');
+        tick();
+      }
+
+      function tick(){
+        clearInterval(timerId);
+        timerId = setInterval(async ()=>{
+          if(paused) return;
+          segundos--;
+          $('timer').innerText = fmt(segundos);
+          if(segundos<=0){
+            clearInterval(timerId);
+            const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
+            const d = list[idx];
+            if(!d){ stopAll(); return; }
+
+            if(fase==='estudo'){
+              // concluiu estudo desta disciplina
+              await updateDoc(doc(db,'users',user.uid,'subjects',d.id), { concluidas: increment(1), lastDone: serverTimestamp() });
+              fase='pausa';
+              segundos = (d.pausa||1)*60;
+              paintTimer();
+              tick();
+            } else {
+              // terminou pausa -> próxima disciplina
+              idx++;
+              if(idx>=list.length){
+                // ciclo completo da trilha
+                await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
+                idx=0; // recomeça
+              }
+              fase='estudo';
+              const d2 = disciplinas.filter(x=>x.concursoId===selectedConcursoId)[idx];
+              segundos = ((d2?.estudo)||1)*60;
+              paintTimer();
+              tick();
+            }
+          }
+        },1000);
+      }
+
+      function pauseResume(){
+        if(!running) return;
+        paused = !paused;
+        $('btnPause').innerText = paused ? '▶️ Retomar' : '⏯ Pausar/Retomar';
+      }
+
+      function stopAll(){
+        running=false; paused=false; clearInterval(timerId);
+        $('timer').innerText='00:00'; $('fasePill').innerText='—';
+        toggleExecButtons('idle');
+      }
+
+      $('btnStart').addEventListener('click', startCycle);
+      $('btnPause').addEventListener('click', pauseResume);
+      $('btnStop').addEventListener('click', stopAll);
+
+      // página inicial
+      setPage('concurso');
+    </script>
+  </body>
+  </html>
