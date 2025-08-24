@@ -61,7 +61,7 @@
     </nav>
 
     <!-- 1) CONCURSO / TRILHA -->
-    <section id="pageConcurso" class="">
+    <section id="pageConcurso">
       <div class="card">
         <h2 class="title">Cadastrar Concurso / Trilha</h2>
         <div class="grid grid-cols-2">
@@ -75,7 +75,6 @@
           </div>
         </div>
       </div>
-
       <div class="card">
         <div class="row" style="justify-content:space-between;">
           <h2 class="title">Minhas Trilhas</h2>
@@ -86,7 +85,7 @@
       <div class="meta">Ciclos concluídos (todas as trilhas): <b id="ciclosCount">0</b></div>
     </section>
 
-    <!-- 2) DISCIPLINAS (por Concurso selecionado) -->
+    <!-- 2) DISCIPLINAS -->
     <section id="pageDisciplinas" class="hidden">
       <div class="card">
         <h2 class="title">Cadastrar / Editar Disciplina</h2>
@@ -94,7 +93,6 @@
           <div>
             <label for="selectConcurso">Concurso / Trilha</label>
             <select id="selectConcurso"></select>
-            <div class="hint">Apenas disciplinas do concurso selecionado serão listadas abaixo e usadas na Execução.</div>
           </div>
           <div>
             <label for="nome">Nome da disciplina</label>
@@ -117,12 +115,8 @@
           </div>
         </div>
       </div>
-
       <div class="card">
-        <div class="row" style="justify-content:space-between;">
-          <h2 class="title">Disciplinas da Trilha</h2>
-          <div class="meta">Ordem de execução segue a ordem de criação (<span class="kbd">orderIndex</span>).</div>
-        </div>
+        <h2 class="title">Disciplinas da Trilha</h2>
         <ul id="listaDisciplinas"></ul>
       </div>
     </section>
@@ -140,465 +134,263 @@
             <span id="fasePill" class="pill">—</span>
           </div>
         </div>
-
-        <div class="row" style="gap:12px;margin:8px 0;">
-          <label class="meta" for="execSelectConcurso">Trocar trilha:</label>
-          <select id="execSelectConcurso"></select>
-        </div>
-
-        <div style="margin:12px 0 16px;">
-          <div id="timer" class="timer">00:00</div>
-        </div>
-
-        <div class="row" style="justify-content:center;">
-          <button id="btnStart" class="btn">▶️ Iniciar</button>
-          <button id="btnPause" class="btn secondary" disabled>⏯ Pausar/Retomar</button>
-          <button id="btnStop" class="btn danger" disabled>⏹ Parar</button>
+        <div class="timer" id="timerDisplay">00:00</div>
+        <div class="row" style="justify-content:center;gap:12px;margin-top:12px;">
+          <button id="btnStart" class="btn">Iniciar</button>
+          <button id="btnPause" class="btn secondary" disabled>Pausar</button>
+          <button id="btnStop" class="btn danger" disabled>Parar</button>
         </div>
       </div>
-
       <div class="card">
-        <h3 class="title">Fila do ciclo (trilha selecionada)</h3>
-        <ul id="fila"></ul>
+        <h2 class="title">Fila de Execução</h2>
+        <ul id="filaExec"></ul>
       </div>
     </section>
   </div>
 
+  <!-- Firebase SDK -->
   <script type="module">
-    // ===== Firebase (CDN) =====
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import {
-      getFirestore, enableIndexedDbPersistence, collection, query, where, orderBy, onSnapshot,
-      addDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, getDocs
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.15.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.15.0/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, addDoc, getDoc, getDocs, onSnapshot, serverTimestamp, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.15.0/firebase-firestore.js";
 
-    // ==== SUA CONFIG FIREBASE (usei a que você enviou) ====
     const firebaseConfig = {
-      apiKey: "AIzaSyC9kJ0-CBniLnmy-CAlsYdJ-I5xSWdhWgw",
-      authDomain: "pomodoro-estudos.firebaseapp.com",
-      projectId: "pomodoro-estudos",
-      storageBucket: "pomodoro-estudos.firebasestorage.app",
-      messagingSenderId: "1012426043693",
-      appId: "1:1012426043693:web:56cd7ccecfb61ffd98a3a4",
-      measurementId: "G-8WR1C80KCN"
+      apiKey: "COLE_AQUI",
+      authDomain: "SEU_FIREBASE.firebaseapp.com",
+      projectId: "SEU_FIREBASE",
+      storageBucket: "SEU_FIREBASE.appspot.com",
+      messagingSenderId: "COLE_AQUI",
+      appId: "COLE_AQUI"
     };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    enableIndexedDbPersistence(db).catch(()=>{});
 
-    // ===== Estado =====
-    let user = null;
-    let concursos = [];        // [{id, nome}]
-    let disciplinas = [];      // todas as disciplinas (vamos filtrar por concurso)
-    let selectedConcursoId = ""; // controle global de seleção
+    const $ = id => document.getElementById(id);
+
+    let currentUser = null;
+    let selectedConcurso = null;
     let editDisciplinaId = null;
-    let disciplinaAtualIndex = 0; // começa na primeira da fila
+    let timerInterval = null;
+    let timerRemaining = 0;
+    let timerPhase = "estudo"; // estudo/pausa
+    let filaExec = [];
 
-    // Execução
-    let running=false, paused=false, timerId=null, idx=0, fase='estudo', segundos=0;
+    const themeToggle = () => {
+      const theme = document.body.getAttribute('data-theme') === 'light' ? 'dark':'light';
+      document.body.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    };
 
-    // ===== Utils =====
-    const $ = (id)=>document.getElementById(id);
-    const fmt = (s)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-    function setPage(page){
-      const map = {
-        concurso: $('pageConcurso'),
-        disciplinas: $('pageDisciplinas'),
-        execucao: $('pageExecucao'),
-      };
-      Object.entries(map).forEach(([k,el])=>el.classList.toggle('hidden', k!==page));
-      // abas visuais
-      $('tabConcurso').classList.toggle('tab-active', page==='concurso');
-      $('tabDisciplinas').classList.toggle('tab-active', page==='disciplinas');
-      $('tabExecucao').classList.toggle('tab-active', page==='execucao');
-    }
-    function persistTheme(theme){ try{ localStorage.setItem('theme', theme);}catch{} }
-    function loadTheme(){ try{ return localStorage.getItem('theme') || 'light'; }catch{ return 'light'; } }
-    function applyTheme(theme){ document.body.setAttribute('data-theme', theme); }
+    $('btnTheme').onclick = themeToggle;
+    const savedTheme = localStorage.getItem('theme');
+    if(savedTheme) document.body.setAttribute('data-theme', savedTheme);
 
-    // ===== Tema (persistente) =====
-    applyTheme(loadTheme());
-    $('btnTheme').addEventListener('click', ()=>{
-      const next = document.body.getAttribute('data-theme')==='light'?'dark':'light';
-      applyTheme(next); persistTheme(next);
-    });
+    // ------------ AUTH ----------------
+    $('btnSignIn').onclick = async () => {
+      try {
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+      } catch(e){ alert('Falha no login: '+e.message) }
+    };
 
-    // ===== Tabs
-    $('tabConcurso').addEventListener('click', ()=>setPage('concurso'));
-    $('tabDisciplinas').addEventListener('click', ()=>setPage('disciplinas'));
-    $('tabExecucao').addEventListener('click', ()=>setPage('execucao'));
+    $('btnSignOut').onclick = async () => { await signOut(auth); stopAll(); };
 
-    // ===== Auth
-    async function signInGoogle(){ await signInWithPopup(auth, new GoogleAuthProvider()); }
-    async function signOutUser(){ await signOut(auth); }
-
-    $('btnSignIn').addEventListener('click', ()=>signInGoogle().catch(e=>alert('Falha no login: '+e.message)));
-    $('btnSignOut').addEventListener('click', ()=>{ stopAll(); signOutUser(); });
-
-    onAuthStateChanged(auth, async (u)=>{
-      user = u || null;
-
-      // if(user){
-      //   await carregarEstado();
-      // }
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user;
       if(user){
-        const uref = doc(db, 'users', user.uid);
-        const snap = await getDoc(uref);
-        if(!snap.exists()) await setDoc(uref, { cyclesCompleted: 0, createdAt: serverTimestamp() });
-
-        // contador global de ciclos
-        onSnapshot(uref, (s) => { $('ciclosCount').innerText = s.data()?.cyclesCompleted || 0; });
-      }
-
-
-
-      if(!user){
+        $('userLabel').innerText = user.displayName;
+        $('btnSignIn').classList.add('hidden');
+        $('btnSignOut').classList.remove('hidden');
+        initUserData();
+      } else {
         $('userLabel').innerText = 'Desconectado';
         $('btnSignIn').classList.remove('hidden');
         $('btnSignOut').classList.add('hidden');
-        concursos=[]; disciplinas=[]; selectedConcursoId=""; paintConcursos(); paintDisciplinas(); paintExecInfo();
-        $('ciclosCount').innerText='0';
-        setPage('concurso');
-        return;
+        selectedConcurso = null;
+        $('listaConcursos').innerHTML = '';
+        $('selectConcurso').innerHTML = '';
+        $('listaDisciplinas').innerHTML = '';
+        $('filaExec').innerHTML = '';
+        $('ciclosCount').innerText = 0;
       }
+    });
 
-      $('userLabel').innerText = user.displayName || user.email;
-      $('btnSignIn').classList.add('hidden');
-      $('btnSignOut').classList.remove('hidden');
-
-      // raiz do user
-      const uref = doc(db, 'users', user.uid);
+    // ------------ DADOS ----------------
+    async function initUserData(){
+      const uref = doc(db,'users',currentUser.uid);
       const snap = await getDoc(uref);
-      if(!snap.exists()) await setDoc(uref, { cyclesCompleted: 0, createdAt: serverTimestamp() });
+      if(!snap.exists()) await setDoc(uref,{cyclesCompleted:0,createdAt:serverTimestamp()});
+      // Atualiza contador global
+      onSnapshot(uref,(s)=>{ $('ciclosCount').innerText = s.data()?.cyclesCompleted || 0; });
 
-      // contador global de ciclos
-      onSnapshot(uref, (s)=>{ $('ciclosCount').innerText = s.data()?.cyclesCompleted || 0; });
-
-      // concursos
-      onSnapshot(collection(db,'users',user.uid,'concursos'), (qs)=>{
-        concursos = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.nome||'').localeCompare(b.nome||''));
-        // se nada selecionado, tenta selecionar o primeiro
-        if(!selectedConcursoId && concursos.length>0) selectedConcursoId = concursos[0].id;
-        paintConcursos();
-        paintConcursoSelectors();
-        paintDisciplinas();      // refiltra
-        paintExecInfo();         // atualiza nome
-      });
-
-      // disciplinas (todas; filtramos localmente por selectedConcursoId)
-      onSnapshot(collection(db,'users',user.uid,'subjects'), (qs)=>{
-        disciplinas = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.orderIndex||0)-(b.orderIndex||0));
-        paintDisciplinas();
-        paintExecQueue();
-      });
-    });
-
-
-
-    // ===== CONCURSOS =====
-    $('btnAddConcurso').addEventListener('click', async ()=>{
-      if(!user) return alert('Faça login.');
-      const nome = $('nomeConcurso').value.trim();
-      if(!nome) return alert('Informe um nome.');
-      await addDoc(collection(db,'users',user.uid,'concursos'), { nome, createdAt: serverTimestamp() });
-      $('nomeConcurso').value = '';
-    });
-
-    function paintConcursos(){
-      const ul = $('listaConcursos'); ul.innerHTML='';
-      concursos.forEach(c=>{
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <div style="text-align:left">
-            <b>${c.nome}</b>
-            <div class="meta">ID: <span class="kbd">${c.id}</span></div>
-          </div>
-          <div class="row">
-            <button class="btn ghost" data-select="${c.id}" title="Selecionar">Selecionar</button>
-            <button class="btn secondary" data-edit="${c.id}" title="Renomear">✏️</button>
-            <button class="btn danger" data-del="${c.id}" title="Excluir">🗑</button>
-          </div>`;
-        ul.appendChild(li);
-      });
-
-      // selecionar
-      ul.querySelectorAll('[data-select]').forEach(b=>b.addEventListener('click', (e)=>{
-        selectedConcursoId = e.currentTarget.getAttribute('data-select');
-        paintConcursoSelectors();
-        paintDisciplinas();
-        paintExecInfo();
-        paintExecQueue();
-        // já leva o usuário para Disciplinas
-        setPage('disciplinas');
-      }));
-
-      // renomear
-      ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', async (e)=>{
-        const id = e.currentTarget.getAttribute('data-edit');
-        const c = concursos.find(x=>x.id===id);
-        const novo = prompt('Novo nome da trilha:', c?.nome || '');
-        if(novo && user){
-          await updateDoc(doc(db,'users',user.uid,'concursos',id), { nome: novo.trim() });
-        }
-      }));
-
-      // excluir (bloqueia se houver disciplinas vinculadas)
-      ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async (e)=>{
-        if(!user) return;
-        const id = e.currentTarget.getAttribute('data-del');
-        const has = disciplinas.some(d=>d.concursoId===id);
-        if(has){ alert('Não é possível excluir: existem disciplinas vinculadas a esta trilha. Exclua-as primeiro.'); return; }
-        if(confirm('Excluir esta trilha?')){
-          await deleteDoc(doc(db,'users',user.uid,'concursos',id));
-          if(selectedConcursoId===id) selectedConcursoId="";
-          paintConcursoSelectors();
-          paintDisciplinas();
-          paintExecInfo();
-        }
-      }));
+      loadConcursos();
     }
 
-    function paintConcursoSelectors(){
-      // seletor na página Disciplinas
-      const sel1 = $('selectConcurso');
-      sel1.innerHTML = '<option value="">— selecione uma trilha —</option>';
-      concursos.forEach(c=>{
-        const opt = document.createElement('option');
-        opt.value = c.id; opt.text = c.nome;
-        sel1.add(opt);
+    async function loadConcursos(){
+      const q = collection(db,'users',currentUser.uid,'concursos');
+      onSnapshot(q,(snap)=>{
+        const list = $('listaConcursos'); list.innerHTML=''; 
+        const sel = $('selectConcurso'); sel.innerHTML='';
+        snap.forEach(docu=>{
+          const data = docu.data();
+          // lista
+          const li = document.createElement('li'); 
+          li.innerHTML=`<span>${data.nome}</span>
+            <div class="row">
+              <button class="btn secondary" onclick="selectConcurso('${docu.id}','${data.nome}')">Selecionar</button>
+              <button class="btn danger" onclick="deleteConcurso('${docu.id}')">Excluir</button>
+            </div>`;
+          list.appendChild(li);
+          // select
+          const op = document.createElement('option');
+          op.value=docu.id; op.innerText=data.nome;
+          sel.appendChild(op);
+        });
       });
-      if(selectedConcursoId) sel1.value = selectedConcursoId;
-
-      // seletor na página Execução
-      const sel2 = $('execSelectConcurso');
-      sel2.innerHTML = '<option value="">— selecione —</option>';
-      concursos.forEach(c=>{
-        const opt = document.createElement('option');
-        opt.value = c.id; opt.text = c.nome;
-        sel2.add(opt);
-      });
-      if(selectedConcursoId) sel2.value = selectedConcursoId;
-
-      sel1.onchange = ()=>{ selectedConcursoId = sel1.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
-      sel2.onchange = ()=>{ selectedConcursoId = sel2.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
     }
 
-    // ===== DISCIPLINAS =====
-    $('btnAddDisciplina').addEventListener('click', async ()=>{
-      if(!user) return alert('Faça login.');
+    window.selectConcurso = async (id,nome)=>{
+      selectedConcurso=id;
+      $('execConcursoNome').innerText=nome;
+      loadDisciplinas();
+    }
+
+    async function deleteConcurso(id){
+      if(!confirm('Excluir trilha e todas as disciplinas?')) return;
+      await deleteDoc(doc(db,'users',currentUser.uid,'concursos',id));
+      const disps = collection(db,'users',currentUser.uid,'concursos',id,'disciplinas');
+      const snap = await getDocs(disps);
+      snap.forEach(d=>deleteDoc(d.ref));
+      if(selectedConcurso===id) selectedConcurso=null;
+    }
+
+    // ------------ DISCIPLINAS ----------------
+    $('btnAddDisciplina').onclick = async ()=>{
+      const nome=$('nome').value.trim();
+      const minEstudo=Number($('estudo').value);
+      const minPausa=Number($('pausa').value);
       const concursoId = $('selectConcurso').value;
-      if(!concursoId) return alert('Selecione uma trilha.');
-      const nome = $('nome').value.trim();
-      const estudo = parseInt($('estudo').value,10);
-      const pausa  = parseInt($('pausa').value,10);
-      if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
-      await addDoc(collection(db,'users',user.uid,'subjects'), {
-        nome, estudo, pausa, concursoId, concluidas: 0, orderIndex: Date.now(), createdAt: serverTimestamp()
+      if(!nome||!concursoId) return alert('Informe trilha e nome da disciplina');
+      await addDoc(collection(db,'users',currentUser.uid,'concursos',concursoId,'disciplinas'),{
+        nome, estudo:minEstudo, pausa:minPausa, createdAt:serverTimestamp()
       });
-      resetDisciplinaEditor();
-    });
-
-    $('btnSaveEdit').addEventListener('click', async ()=>{
-      if(!user || !editDisciplinaId) return;
-      const nome = $('nome').value.trim();
-      const estudo = parseInt($('estudo').value,10);
-      const pausa  = parseInt($('pausa').value,10);
-      if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
-      await updateDoc(doc(db,'users',user.uid,'subjects',editDisciplinaId), { nome, estudo, pausa });
-      resetDisciplinaEditor();
-    });
-
-    $('btnCancelEdit').addEventListener('click', resetDisciplinaEditor);
-
-    function resetDisciplinaEditor(){
       $('nome').value=''; $('estudo').value=50; $('pausa').value=10;
-      $('btnAddDisciplina').classList.remove('hidden');
-      $('btnSaveEdit').classList.add('hidden');
-      $('btnCancelEdit').classList.add('hidden');
-      editDisciplinaId = null;
+    };
+
+    async function loadDisciplinas(){
+      if(!selectedConcurso) return;
+      const q = collection(db,'users',currentUser.uid,'concursos',selectedConcurso,'disciplinas');
+      onSnapshot(q,(snap)=>{
+        const ul = $('listaDisciplinas'); ul.innerHTML='';
+        snap.forEach(docu=>{
+          const d=docu.data();
+          const li=document.createElement('li');
+          li.innerHTML=`<span>${d.nome} (${d.estudo}min / ${d.pausa}min)</span>
+            <div class="row">
+              <button class="btn secondary" onclick="addFilaExec('${docu.id}','${d.nome}',${d.estudo},${d.pausa})">Fila</button>
+              <button class="btn danger" onclick="deleteDisciplina('${docu.id}')">Excluir</button>
+            </div>`;
+          ul.appendChild(li);
+        });
+      });
     }
 
-    function paintDisciplinas(){
-      const ul = $('listaDisciplinas'); ul.innerHTML='';
-      const list = disciplinas.filter(d=> d.concursoId === selectedConcursoId);
-      list.forEach(d=>{
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <div style="text-align:left">
-            <b>${d.nome}</b>
-            <div class="meta">${d.estudo} min estudo • ${d.pausa} min pausa • Concluída: <b>${d.concluidas||0}x</b></div>
-          </div>
-          <div class="row">
-            <button class="btn secondary" data-edit="${d.id}">✏️</button>
-            <button class="btn danger" data-del="${d.id}">🗑</button>
-          </div>`;
+    window.deleteDisciplina = async (id)=>{
+      if(!selectedConcurso) return;
+      await deleteDoc(doc(db,'users',currentUser.uid,'concursos',selectedConcurso,'disciplinas',id));
+    }
+
+    // ------------ FILA DE EXECUÇÃO ----------------
+    window.addFilaExec=(id,nome,estudo,pausa)=>{
+      filaExec.push({id,nome,estudo,pausa});
+      renderFilaExec();
+    }
+
+    function renderFilaExec(){
+      const ul=$('filaExec'); ul.innerHTML='';
+      filaExec.forEach((f,idx)=>{
+        const li=document.createElement('li');
+        li.innerHTML=`<span>${f.nome} (${f.estudo}min/${f.pausa}min)</span>
+          <button class="btn danger" onclick="removeFila(${idx})">✖</button>`;
         ul.appendChild(li);
       });
-
-      // eventos
-      ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', e=>{
-        const id = e.currentTarget.getAttribute('data-edit');
-        const d = disciplinas.find(x=>x.id===id);
-        if(!d) return;
-        $('nome').value = d.nome; $('estudo').value = d.estudo; $('pausa').value = d.pausa;
-        editDisciplinaId = id;
-        $('btnAddDisciplina').classList.add('hidden');
-        $('btnSaveEdit').classList.remove('hidden');
-        $('btnCancelEdit').classList.remove('hidden');
-      }));
-      ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async e=>{
-        const id = e.currentTarget.getAttribute('data-del');
-        if(confirm('Excluir disciplina?')){
-          await deleteDoc(doc(db,'users',user.uid,'subjects',id));
-        }
-      }));
-
-      paintExecQueue();
     }
 
-    // ===== EXECUÇÃO =====
-    function paintExecInfo(){
-      const nome = concursos.find(c=>c.id===selectedConcursoId)?.nome || '—';
-      $('execConcursoNome').innerText = nome;
+    window.removeFila=(idx)=>{ filaExec.splice(idx,1); renderFilaExec(); }
+
+    // ------------ POMODORO ----------------
+    $('btnStart').onclick=startTimer;
+    $('btnPause').onclick=pauseTimer;
+    $('btnStop').onclick=stopAll;
+
+    function startTimer(){
+      if(filaExec.length===0) return alert('Adicione disciplinas na fila');
+      const atual=filaExec[0];
+      timerPhase='estudo'; timerRemaining=atual.estudo*60;
+      updateFasePill();
+      $('btnStart').disabled=true; $('btnPause').disabled=false; $('btnStop').disabled=false;
+      timerInterval=setInterval(tickTimer,1000);
     }
 
-    function paintExecQueue(){
-      const fila = $('fila'); fila.innerHTML='';
-      const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
-      list.forEach((d,i)=>{
-        const li = document.createElement('li');
-        li.innerHTML = `<div><b>${i+1}. ${d.nome}</b> <span class="meta">(${d.estudo}+${d.pausa})</span></div>`;
-        fila.appendChild(li);
-
-        // 🔹 Aqui entra o "Executando"
-        if (i === disciplinaAtualIndex) {
-          li.innerHTML += " <span style='color:green'>(Executando)</span>";
-        }
-
-        fila.appendChild(li);
-      });
-    }
-
-    function paintTimer(){
-      $('timer').innerText = fmt(segundos);
-      $('fasePill').innerText = (fase==='estudo'?'Estudo':'Pausa');
-    }
-
-    function toggleExecButtons(state){
-      const runningState = state==='running';
-      $('btnStart').disabled = runningState;
-      $('btnPause').disabled = !runningState;
-      $('btnStop').disabled  = !runningState;
-    }
-
-    function startCycle(){
-      if(!user) return alert('Faça login.');
-      if(!selectedConcursoId) return alert('Selecione uma trilha.');
-      const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
-      if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
-
-      running = true; paused=false; idx=0; fase='estudo';
-      segundos = (list[0].estudo||1)*60;
-      paintExecInfo(); paintTimer(); toggleExecButtons('running');
-      tick();
-    }
-
-    function tick(){
-      clearInterval(timerId);
-      timerId = setInterval(async ()=>{
-        if(paused) return;
-        segundos--;
-        salvarEstado()
-        $('timer').innerText = fmt(segundos);
-        if(segundos<=0){
-          clearInterval(timerId);
-          const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
-          const d = list[idx];
-          if(!d){ stopAll(); return; }
-
-          if(fase==='estudo'){
-            // concluiu estudo desta disciplina
-            await updateDoc(doc(db,'users',user.uid,'subjects',d.id), { concluidas: increment(1), lastDone: serverTimestamp() });
-            fase='pausa';
-            segundos = (d.pausa||1)*60;
-            paintTimer();
-            tick();
-          } else {
-            // terminou pausa -> próxima disciplina
-            idx++;
-            disciplinaAtualIndex = idx;
-            paintExecQueue(); // redesenha a fila mostrando quem está "Executando"
-
-            if(idx>=list.length){
-              // ciclo completo da trilha
-              await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
-              idx=0; // recomeça
-            }
-            fase='estudo';
-            const d2 = disciplinas.filter(x=>x.concursoId===selectedConcursoId)[idx];
-            segundos = ((d2?.estudo)||1)*60;
-            paintTimer();
-            tick();
-          }
-        }
-      },1000);
-    }
-     
-    //import { getDatabase, ref, set } from "firebase/database";
-    import { getDatabase, ref as dbRef, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-    const dbRT = getDatabase(app); // já com sua config do Firebase
-
-    function salvarEstado() {
-      if (!user) return; // só salva se o usuário estiver logado
-      set(ref(dbRT, 'users/' + user.uid + '/execState'), {
-        disciplinaAtualIndex,
-        fase,
-        //segundosRestantes: 
-        segundos,
-        timestamp: Date.now()
-      });
-    }
-
-    async function carregarEstado(){
-        const ref = dbRef(db, `users/${user.uid}/execState`);
-        //const snap = await get(ref);
-        const snap = await get(dbRef(dbRT, `users/${user.uid}/execState`));
-        if(snap.exists()){
-            const data = snap.val();
-            selectedConcursoId = data.concursoId || selectedConcursoId;
-            disciplinaAtualIndex = data.disciplinaAtualIndex || 0;
-            fase = data.fase || 'estudo';
-            segundos = data.segundos || 0;
-
-            paintExecInfo();
-            paintExecQueue();
-            paintTimer();
-        }
-    }
-
-
-    function pauseResume(){
-      if(!running) return;
-      paused = !paused;
-      $('btnPause').innerText = paused ? '▶️ Retomar' : '⏯ Pausar/Retomar';
+    function pauseTimer(){
+      clearInterval(timerInterval); timerInterval=null;
+      $('btnStart').disabled=false; $('btnPause').disabled=true;
     }
 
     function stopAll(){
-      running=false; paused=false; clearInterval(timerId);
-      $('timer').innerText='00:00'; $('fasePill').innerText='—';
-      toggleExecButtons('idle');
+      clearInterval(timerInterval); timerInterval=null; timerRemaining=0;
+      $('timerDisplay').innerText='00:00';
+      $('btnStart').disabled=false; $('btnPause').disabled=true; $('btnStop').disabled=true;
     }
 
-    $('btnStart').addEventListener('click', startCycle);
-    $('btnPause').addEventListener('click', pauseResume);
-    $('btnStop').addEventListener('click', stopAll);
+    function tickTimer(){
+      if(timerRemaining<=0){
+        if(timerPhase==='estudo'){
+          timerPhase='pausa';
+          timerRemaining=filaExec[0].pausa*60;
+          updateFasePill();
+          alert('Hora da pausa!');
+        } else {
+          // finalizou disciplina
+          alert(`Disciplina ${filaExec[0].nome} concluída!`);
+          filaExec.shift();
+          renderFilaExec();
+          // aumenta contador global
+          if(currentUser){
+            const uref=doc(db,'users',currentUser.uid);
+            updateDoc(uref,{cyclesCompleted:(parseInt($('ciclosCount').innerText)||0)+1});
+          }
+          if(filaExec.length>0){ timerPhase='estudo'; timerRemaining=filaExec[0].estudo*60; updateFasePill(); }
+          else{ stopAll(); return; }
+        }
+      }
+      const m=Math.floor(timerRemaining/60).toString().padStart(2,'0');
+      const s=(timerRemaining%60).toString().padStart(2,'0');
+      $('timerDisplay').innerText=`${m}:${s}`;
+      timerRemaining--;
+    }
 
-    // página inicial
-    setPage('concurso');
+    function updateFasePill(){
+      $('fasePill').innerText=timerPhase==='estudo'?'Estudo':'Pausa';
+    }
+
+    // ------------ TABS ----------------
+    $('tabConcurso').onclick=()=>showTab('pageConcurso');
+    $('tabDisciplinas').onclick=()=>showTab('pageDisciplinas');
+    $('tabExecucao').onclick=()=>showTab('pageExecucao');
+
+    function showTab(tabId){
+      ['pageConcurso','pageDisciplinas','pageExecucao'].forEach(id=>{
+        $(id).classList.add('hidden');
+      });
+      $(tabId).classList.remove('hidden');
+      document.querySelectorAll('nav.tabs button').forEach(btn=>btn.classList.remove('tab-active'));
+      if(tabId==='pageConcurso') $('tabConcurso').classList.add('tab-active');
+      if(tabId==='pageDisciplinas') $('tabDisciplinas').classList.add('tab-active');
+      if(tabId==='pageExecucao') $('tabExecucao').classList.add('tab-active');
+    }
   </script>
 </body>
 </html>
