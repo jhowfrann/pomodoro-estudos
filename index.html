@@ -1,150 +1,706 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Pomodoro Estudo</title>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<style>
-  body { font-family: sans-serif; padding: 20px; }
-  #timer { font-size: 3em; margin: 20px 0; }
-  button { margin: 5px; padding: 10px 20px; font-size: 1em; }
-</style>
-</head>
-<body>
-
-<h1>Pomodoro Estudo</h1>
-<div id="user-info"></div>
-<div id="timer">00:00</div>
-<button id="startBtn">Iniciar</button>
-<button id="pauseBtn">Pausar</button>
-<button id="nextBtn">Próxima Disciplina</button>
-
-<script>
-// ====== CONFIGURAÇÃO FIREBASE ======
-const firebaseConfig = {
-    apiKey: "COLE_AQUI",
-    authDomain: "SEU_DOMINIO.firebaseapp.com",
-    projectId: "SEU_PROJECT_ID",
-    storageBucket: "SEU_PROJECT_ID.appspot.com",
-    messagingSenderId: "XXXX",
-    appId: "XXXX"
-};
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-// ====== VARIÁVEIS GLOBAIS ======
-let userId = null;
-let filaExec = [];
-let atualIndex = 0;
-let fase = "estudo";
-let tempoRestante = 0;
-let intervalId = null;
-
-// ====== FUNÇÃO AUXILIAR ======
-function formatTime(segundos) {
-    let m = Math.floor(segundos/60).toString().padStart(2,'0');
-    let s = (segundos%60).toString().padStart(2,'0');
-    return `${m}:${s}`;
-}
-
-function renderTimer() {
-    document.getElementById("timer").innerText = formatTime(tempoRestante);
-}
-
-// ====== FUNÇÕES FIRESTORE ======
-async function salvarProgresso() {
-    if (!userId) return;
-    await db.collection("users").doc(userId).set({
-        filaExec,
-        atualIndex,
-        fase,
-        tempoRestante,
-        lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
-    });
-}
-
-async function carregarProgresso() {
-    if (!userId) return;
-    const doc = await db.collection("users").doc(userId).get();
-    if (doc.exists) {
-        const data = doc.data();
-        filaExec = data.filaExec || [];
-        atualIndex = data.atualIndex || 0;
-        fase = data.fase || "estudo";
-        tempoRestante = data.tempoRestante || (filaExec[0]?.estudo || 1500);
-        renderTimer();
-    } else {
-        // Inicializa com exemplo se não houver dados
-        filaExec = [
-            {id:"disc1", nome:"Português", estudo:50*60, pausa:10*60},
-            {id:"disc2", nome:"Matemática", estudo:40*60, pausa:10*60}
-        ];
-        atualIndex = 0;
-        fase = "estudo";
-        tempoRestante = filaExec[0].estudo;
-        salvarProgresso();
-        renderTimer();
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pomodoro de Estudos — V2.0</title>
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
+      --ok:#16a34a; --warn:#f59e0b; --danger:#ef4444;
     }
-}
+    [data-theme="dark"]{
+      --bg:#0f172a; --card:#111827; --text:#e5e7eb; --accent:#3b82f6; --muted:#94a3b8; --border:#1f2937; --soft:#0b1220;
+      --ok:#22c55e; --warn:#fbbf24; --danger:#f87171;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);transition:background .25s,color .25s}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--card);box-shadow:0 2px 12px rgba(0,0,0,.08);position:sticky;top:0;z-index:20}
+    header h1{margin:0;font-size:18px}
+    .auth{display:flex;gap:8px;align-items:center}
+    .btn{border:0;padding:10px 12px;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;font-weight:700}
+    .btn.secondary{background:var(--soft);color:var(--text)}
+    .btn.danger{background:var(--danger)}
+    .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .container{max-width:1000px;margin:20px auto;padding:0 12px}
+    nav.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .tab-active{outline:2px solid var(--accent)}
+    .card{background:var(--card);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:16px}
+    .grid{display:grid;gap:12px}
+    @media (min-width:780px){ .grid-cols-2{grid-template-columns:1fr 1fr} }
+    input,select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);outline:none}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    ul{list-style:none;margin:0;padding:0}
+    li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:var(--card)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .meta{color:var(--muted);font-size:12px}
+    .pill{background:#eef2ff;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:12px}
+    [data-theme="dark"] .pill{background:#1e3a8a;color:#dbeafe}
+    .hidden{display:none}
+    .title{margin:0 0 8px 0;font-size:18px}
+    .timer{font-size:56px;font-weight:900;letter-spacing:2px;text-align:center}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:var(--soft);border:1px solid var(--border);padding:2px 6px;border-radius:6px}
+    .hint{font-size:12px;color:var(--muted)}
+    .badge{padding:4px 8px;border-radius:999px;background:var(--soft);border:1px solid var(--border);font-weight:600}
+    .highlight{outline:2px dashed var(--accent); outline-offset:2px}
+    .current{border:2px solid var(--accent); box-shadow:0 0 0 2px rgba(37,99,235,.1) inset}
+  </style>
+</head>
+<body data-theme="light">
+  <header>
+    <h1>Pomodoro de Estudos <span class="meta">V2.0</span></h1>
+    <div class="row">
+      <div id="currentTrackHeader" class="badge hidden">Trilha atual: —</div>
+    </div>
+    <div class="auth">
+      <span id="userLabel" class="meta">Desconectado</span>
+      <button id="btnSignIn" class="btn">Entrar com Google</button>
+      <button id="btnSignOut" class="btn secondary hidden">Sair</button>
+      <button id="btnTheme" class="btn secondary" title="Alternar tema">🌓</button>
+    </div>
+  </header>
 
-// ====== FUNÇÃO TIMER ======
-function iniciarTimer() {
-    if (intervalId) return; // já está rodando
-    intervalId = setInterval(() => {
-        if (tempoRestante > 0) {
-            tempoRestante--;
-            renderTimer();
-            salvarProgresso();
-        } else {
-            clearInterval(intervalId);
-            intervalId = null;
-            // alterna fase
-            if (fase === "estudo") {
-                fase = "pausa";
-                tempoRestante = filaExec[atualIndex].pausa;
-            } else {
-                fase = "estudo";
-                atualIndex++;
-                if (atualIndex >= filaExec.length) atualIndex = 0;
-                tempoRestante = filaExec[atualIndex].estudo;
-            }
-            renderTimer();
-            salvarProgresso();
-            iniciarTimer(); // reinicia automaticamente
+  <div class="container">
+    <nav class="tabs">
+      <button class="btn secondary tab-active" id="tabConcurso">🏆 Concurso/Trilha</button>
+      <button class="btn secondary" id="tabDisciplinas">📘 Disciplinas</button>
+      <button class="btn secondary" id="tabExecucao">⏱ Execução</button>
+    </nav>
+
+    <!-- 1) CONCURSO / TRILHA -->
+    <section id="pageConcurso" class="">
+      <div class="card">
+        <h2 class="title">Cadastrar Concurso / Trilha</h2>
+        <div class="grid grid-cols-2">
+          <div>
+            <label for="nomeConcurso">Nome do Concurso / Trilha</label>
+            <input id="nomeConcurso" placeholder="Ex.: TCE, CNU, Concurso XYZ" />
+            <div class="hint">Dica: use nomes curtos. Ex.: “PF-ADM”, “TRT-24”.</div>
+          </div>
+          <div class="row" style="align-self:end;">
+            <button id="btnAddConcurso" class="btn">Adicionar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <h2 class="title">Minhas Trilhas</h2>
+          <div class="meta">Selecione uma trilha para gerenciar disciplinas e executar o Pomodoro.</div>
+        </div>
+        <ul id="listaConcursos"></ul>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <h3 class="title">Total de ciclos concluídos</h3>
+          <div class="row" style="gap:8px;align-items:center">
+            <div id="totalCyclesCard" class="timer" style="font-size:36px">0</div>
+            <span class="meta">Contabiliza todos os ciclos completos de todas as trilhas.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2) DISCIPLINAS (por Concurso selecionado) -->
+    <section id="pageDisciplinas" class="hidden">
+      <div class="card">
+        <h2 class="title">Cadastrar / Editar Disciplina</h2>
+        <div class="grid">
+          <div>
+            <label for="selectConcurso">Concurso / Trilha</label>
+            <select id="selectConcurso"></select>
+            <div class="hint">Apenas disciplinas do concurso selecionado serão listadas abaixo e usadas na Execução.</div>
+          </div>
+          <div>
+            <label for="nome">Nome da disciplina</label>
+            <input id="nome" placeholder="Ex.: Português, RLM, Direito Adm." />
+          </div>
+          <div class="grid grid-cols-2">
+            <div>
+              <label for="estudo">Minutos de estudo</label>
+              <input id="estudo" type="number" min="1" value="50" />
+            </div>
+            <div>
+              <label for="pausa">Minutos de pausa</label>
+              <input id="pausa" type="number" min="1" value="10" />
+            </div>
+          </div>
+          <div class="row">
+            <button id="btnAddDisciplina" class="btn">Adicionar</button>
+            <button id="btnSaveEdit" class="btn hidden">Salvar edição</button>
+            <button id="btnCancelEdit" class="btn secondary hidden">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between;">
+          <h2 class="title">Disciplinas da Trilha</h2>
+          <div class="meta">Ordem de execução segue a ordem de criação (<span class="kbd">orderIndex</span>).</div>
+        </div>
+        <ul id="listaDisciplinas"></ul>
+      </div>
+    </section>
+
+    <!-- 3) EXECUÇÃO -->
+    <section id="pageExecucao" class="hidden">
+      <div class="card">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <div>
+            <div class="meta">Concurso / Trilha atual</div>
+            <h2 id="execConcursoNome" class="title">—</h2>
+          </div>
+          <div style="text-align:right">
+            <div class="meta">Fase</div>
+            <span id="fasePill" class="pill">—</span>
+          </div>
+        </div>
+
+        <div class="row" style="gap:12px;margin:8px 0;">
+          <label class="meta" for="execSelectConcurso">Trocar trilha:</label>
+          <select id="execSelectConcurso"></select>
+          <span id="disciplinaAtualBadge" class="badge hidden"></span>
+        </div>
+
+        <div style="margin:12px 0 16px;">
+          <div id="timer" class="timer">00:00</div>
+        </div>
+
+        <div class="row" style="justify-content:center;">
+          <button id="btnStart" class="btn">▶️ Iniciar</button>
+          <button id="btnPause" class="btn secondary" disabled>⏯ Pausar/Retomar</button>
+          <button id="btnStop" class="btn danger" disabled>⏹ Parar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="title">Fila do ciclo (trilha selecionada)</h3>
+        <ul id="fila"></ul>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    // ===== Firebase (CDN) =====
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      getFirestore, enableIndexedDbPersistence, collection, onSnapshot,
+      addDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    import { getDatabase, ref as dbRef, set, get, onValue, update as rtUpdate } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    // ==== SUA CONFIG FIREBASE ====
+    const firebaseConfig = {
+      apiKey: "AIzaSyC9kJ0-CBniLnmy-CAlsYdJ-I5xSWdhWgw",
+      authDomain: "pomodoro-estudos.firebaseapp.com",
+      projectId: "pomodoro-estudos",
+      storageBucket: "pomodoro-estudos.firebasestorage.app",
+      messagingSenderId: "1012426043693",
+      appId: "1:1012426043693:web:56cd7ccecfb61ffd98a3a4",
+      measurementId: "G-8WR1C80KCN",
+      databaseURL: "https://pomodoro-estudos-default-rtdb.firebaseio.com"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const dbRT = getDatabase(app);
+    enableIndexedDbPersistence(db).catch(()=>{});
+
+    // ===== Estado =====
+    let user = null;
+    let concursos = [];        // [{id, nome}]
+    let disciplinas = [];      // todas as disciplinas (filtra por concurso)
+    let selectedConcursoId = ""; // seleção global
+    let editDisciplinaId = null;
+
+    // Execução (estado local derivado do RTDB)
+    // RTDB path: users/{uid}/execState
+    // { running, paused, concursoId, disciplinaIndex, fase, startedAt(ms), duration(s), lastUpdated(ms) }
+    let localTickId = null;
+
+    // ===== Utils =====
+    const $ = (id)=>document.getElementById(id);
+    const fmt = (s)=>{
+      s = Math.max(0, Math.floor(s));
+      const m = Math.floor(s/60);
+      const ss = s%60;
+      return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+    };
+    function setPage(page){
+      const map = {
+        concurso: $('pageConcurso'),
+        disciplinas: $('pageDisciplinas'),
+        execucao: $('pageExecucao'),
+      };
+      Object.entries(map).forEach(([k,el])=>el.classList.toggle('hidden', k!==page));
+      $('tabConcurso').classList.toggle('tab-active', page==='concurso');
+      $('tabDisciplinas').classList.toggle('tab-active', page==='disciplinas');
+      $('tabExecucao').classList.toggle('tab-active', page==='execucao');
+    }
+    function persistTheme(theme){ try{ localStorage.setItem('theme', theme);}catch{} }
+    function loadTheme(){ try{ return localStorage.getItem('theme') || 'light'; }catch{ return 'light'; } }
+    function applyTheme(theme){ document.body.setAttribute('data-theme', theme); }
+    function now(){ return Date.now(); }
+
+    // ===== Tema (persistente) =====
+    applyTheme(loadTheme());
+    $('btnTheme').addEventListener('click', ()=>{
+      const next = document.body.getAttribute('data-theme')==='light'?'dark':'light';
+      applyTheme(next); persistTheme(next);
+    });
+
+    // ===== Tabs
+    $('tabConcurso').addEventListener('click', ()=>setPage('concurso'));
+    $('tabDisciplinas').addEventListener('click', ()=>setPage('disciplinas'));
+    $('tabExecucao').addEventListener('click', ()=>setPage('execucao'));
+
+    // ===== Auth
+    async function signInGoogle(){ await signInWithPopup(auth, new GoogleAuthProvider()); }
+    async function signOutUser(){
+      stopLocalTick();
+      await signOut(auth);
+    }
+
+    $('btnSignIn').addEventListener('click', ()=>signInGoogle().catch(e=>alert('Falha no login: '+e.message)));
+    $('btnSignOut').addEventListener('click', ()=>{ stopLocalTick(); signOutUser(); });
+
+    let unsubscribeRT = null;
+
+    onAuthStateChanged(auth, async (u)=>{
+      user = u || null;
+
+      if(unsubscribeRT){ unsubscribeRT(); unsubscribeRT=null; }
+      stopLocalTick();
+
+      if(!user){
+        $('userLabel').innerText = 'Desconectado';
+        $('btnSignIn').classList.remove('hidden');
+        $('btnSignOut').classList.add('hidden');
+        concursos=[]; disciplinas=[]; selectedConcursoId=""; paintConcursos(); paintDisciplinas(); paintExecInfo();
+        $('totalCyclesCard').innerText='0';
+        setPage('concurso');
+        $('currentTrackHeader').classList.add('hidden');
+        $('currentTrackHeader').innerText = 'Trilha atual: —';
+        return;
+      }
+
+      $('userLabel').innerText = user.displayName || user.email;
+      $('btnSignIn').classList.add('hidden');
+      $('btnSignOut').classList.remove('hidden');
+
+      // raiz do user
+      const uref = doc(db, 'users', user.uid);
+      const snap = await getDoc(uref);
+      if(!snap.exists()) await setDoc(uref, { cyclesCompleted: 0, createdAt: serverTimestamp() });
+
+      // contador global de ciclos (V2 em card na página inicial)
+      onSnapshot(uref, (s)=>{ $('totalCyclesCard').innerText = s.data()?.cyclesCompleted || 0; });
+
+      // concursos
+      onSnapshot(collection(db,'users',user.uid,'concursos'), (qs)=>{
+        concursos = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.nome||'').localeCompare(b.nome||''));
+        if(!selectedConcursoId && concursos.length>0) selectedConcursoId = concursos[0].id;
+        paintConcursos();
+        paintConcursoSelectors();
+        paintDisciplinas();
+        paintExecInfo();
+        paintExecQueue();
+      });
+
+      // disciplinas (todas)
+      onSnapshot(collection(db,'users',user.uid,'subjects'), (qs)=>{
+        disciplinas = qs.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> (a.orderIndex||0)-(b.orderIndex||0));
+        paintDisciplinas();
+        paintExecQueue();
+      });
+
+      // 🔸 Persistência real + sync em tempo real: ouvimos o estado no RTDB
+      const execRef = dbRef(dbRT, `users/${user.uid}/execState`);
+      onValue(execRef, (snap)=>{
+        const st = snap.val();
+        if(!st){
+          // nada ainda salvo
+          renderExecIdle();
+          return;
         }
-    }, 1000);
-}
+        applyRemoteState(st);
+      });
+    });
 
-function pausarTimer() {
-    clearInterval(intervalId);
-    intervalId = null;
-}
+    // ===== CONCURSOS =====
+    $('btnAddConcurso').addEventListener('click', async ()=>{
+      if(!user) return alert('Faça login.');
+      const nome = $('nomeConcurso').value.trim();
+      if(!nome) return alert('Informe um nome.');
+      await addDoc(collection(db,'users',user.uid,'concursos'), { nome, createdAt: serverTimestamp() });
+      $('nomeConcurso').value = '';
+    });
 
-function proximaDisciplina() {
-    clearInterval(intervalId);
-    intervalId = null;
-    atualIndex++;
-    if (atualIndex >= filaExec.length) atualIndex = 0;
-    fase = "estudo";
-    tempoRestante = filaExec[atualIndex].estudo;
-    renderTimer();
-    salvarProgresso();
-}
+    function paintConcursos(){
+      const ul = $('listaConcursos'); ul.innerHTML='';
+      concursos.forEach(c=>{
+        const li = document.createElement('li');
+        const isCurrent = c.id === selectedConcursoId;
+        li.classList.toggle('current', isCurrent);
+        li.innerHTML = `
+          <div style="text-align:left">
+            <b>${c.nome}</b> ${isCurrent ? "<span class='badge'>Atual</span>" : ""}
+            <div class="meta">ID: <span class="kbd">${c.id}</span></div>
+          </div>
+          <div class="row">
+            <button class="btn ghost" data-select="${c.id}" title="Selecionar">Selecionar</button>
+            <button class="btn secondary" data-edit="${c.id}" title="Renomear">✏️</button>
+            <button class="btn danger" data-del="${c.id}" title="Excluir">🗑</button>
+          </div>`;
+        ul.appendChild(li);
+      });
 
-// ====== EVENTOS ======
-document.getElementById("startBtn").onclick = iniciarTimer;
-document.getElementById("pauseBtn").onclick = pausarTimer;
-document.getElementById("nextBtn").onclick = proximaDisciplina;
+      ul.querySelectorAll('[data-select]').forEach(b=>b.addEventListener('click', (e)=>{
+        selectedConcursoId = e.currentTarget.getAttribute('data-select');
+        paintConcursoSelectors();
+        paintDisciplinas();
+        paintExecInfo();
+        paintExecQueue();
+        setPage('disciplinas');
+      }));
 
-// ====== LOGIN ANÔNIMO FIREBASE ======
-auth.signInAnonymously().then(() => {
-    userId = auth.currentUser.uid;
-    document.getElementById("user-info").innerText = `Usuário: ${userId}`;
-    carregarProgresso();
-});
-</script>
+      ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', async (e)=>{
+        const id = e.currentTarget.getAttribute('data-edit');
+        const c = concursos.find(x=>x.id===id);
+        const novo = prompt('Novo nome da trilha:', c?.nome || '');
+        if(novo && user){
+          await updateDoc(doc(db,'users',user.uid,'concursos',id), { nome: novo.trim() });
+        }
+      }));
+
+      ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async (e)=>{
+        if(!user) return;
+        const id = e.currentTarget.getAttribute('data-del');
+        const has = disciplinas.some(d=>d.concursoId===id);
+        if(has){ alert('Não é possível excluir: existem disciplinas vinculadas a esta trilha. Exclua-as primeiro.'); return; }
+        if(confirm('Excluir esta trilha?')){
+          await deleteDoc(doc(db,'users',user.uid,'concursos',id));
+          if(selectedConcursoId===id) selectedConcursoId="";
+          paintConcursoSelectors();
+          paintDisciplinas();
+          paintExecInfo();
+        }
+      }));
+    }
+
+    function paintConcursoSelectors(){
+      const sel1 = $('selectConcurso');
+      sel1.innerHTML = '<option value="">— selecione uma trilha —</option>';
+      concursos.forEach(c=>{
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.text = c.nome;
+        sel1.add(opt);
+      });
+      if(selectedConcursoId) sel1.value = selectedConcursoId;
+
+      const sel2 = $('execSelectConcurso');
+      sel2.innerHTML = '<option value="">— selecione —</option>';
+      concursos.forEach(c=>{
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.text = c.nome;
+        sel2.add(opt);
+      });
+      if(selectedConcursoId) sel2.value = selectedConcursoId;
+
+      sel1.onchange = ()=>{ selectedConcursoId = sel1.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
+      sel2.onchange = ()=>{ selectedConcursoId = sel2.value; paintDisciplinas(); paintExecInfo(); paintExecQueue(); };
+    }
+
+    // ===== DISCIPLINAS =====
+    $('btnAddDisciplina').addEventListener('click', async ()=>{
+      if(!user) return alert('Faça login.');
+      const concursoId = $('selectConcurso').value;
+      if(!concursoId) return alert('Selecione uma trilha.');
+      const nome = $('nome').value.trim();
+      const estudo = parseInt($('estudo').value,10);
+      const pausa  = parseInt($('pausa').value,10);
+      if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
+      await addDoc(collection(db,'users',user.uid,'subjects'), {
+        nome, estudo, pausa, concursoId, concluidas: 0, orderIndex: Date.now(), createdAt: serverTimestamp()
+      });
+      resetDisciplinaEditor();
+    });
+
+    $('btnSaveEdit').addEventListener('click', async ()=>{
+      if(!user || !editDisciplinaId) return;
+      const nome = $('nome').value.trim();
+      const estudo = parseInt($('estudo').value,10);
+      const pausa  = parseInt($('pausa').value,10);
+      if(!nome || !estudo || !pausa) return alert('Preencha todos os campos.');
+      await updateDoc(doc(db,'users',user.uid,'subjects',editDisciplinaId), { nome, estudo, pausa });
+      resetDisciplinaEditor();
+    });
+
+    $('btnCancelEdit').addEventListener('click', resetDisciplinaEditor);
+
+    function resetDisciplinaEditor(){
+      $('nome').value=''; $('estudo').value=50; $('pausa').value=10;
+      $('btnAddDisciplina').classList.remove('hidden');
+      $('btnSaveEdit').classList.add('hidden');
+      $('btnCancelEdit').classList.add('hidden');
+      editDisciplinaId = null;
+    }
+
+    function paintDisciplinas(){
+      const ul = $('listaDisciplinas'); ul.innerHTML='';
+      const list = disciplinas.filter(d=> d.concursoId === selectedConcursoId);
+      list.forEach(d=>{
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <div style="text-align:left">
+            <b>${d.nome}</b>
+            <div class="meta">${d.estudo} min estudo • ${d.pausa} min pausa • Concluída: <b>${d.concluidas||0}x</b></div>
+          </div>
+          <div class="row">
+            <button class="btn secondary" data-edit="${d.id}">✏️</button>
+            <button class="btn danger" data-del="${d.id}">🗑</button>
+          </div>`;
+        ul.appendChild(li);
+      });
+
+      ul.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', e=>{
+        const id = e.currentTarget.getAttribute('data-edit');
+        const d = disciplinas.find(x=>x.id===id);
+        if(!d) return;
+        $('nome').value = d.nome; $('estudo').value = d.estudo; $('pausa').value = d.pausa;
+        editDisciplinaId = id;
+        $('btnAddDisciplina').classList.add('hidden');
+        $('btnSaveEdit').classList.remove('hidden');
+        $('btnCancelEdit').classList.remove('hidden');
+      }));
+      ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async e=>{
+        const id = e.currentTarget.getAttribute('data-del');
+        if(confirm('Excluir disciplina?')){
+          await deleteDoc(doc(db,'users',user.uid,'subjects',id));
+        }
+      }));
+
+      paintExecQueue();
+    }
+
+    // ===== EXECUÇÃO =====
+
+    function currentTrackName(){
+      return concursos.find(c=>c.id===selectedConcursoId)?.nome || '—';
+    }
+
+    function paintExecInfo(){
+      const nome = currentTrackName();
+      $('execConcursoNome').innerText = nome;
+      if(selectedConcursoId){
+        $('currentTrackHeader').classList.remove('hidden');
+        $('currentTrackHeader').innerText = 'Trilha atual: ' + nome;
+      }else{
+        $('currentTrackHeader').classList.add('hidden');
+        $('currentTrackHeader').innerText = 'Trilha atual: —';
+      }
+    }
+
+    function paintExecQueue(remoteState=null){
+      const fila = $('fila'); fila.innerHTML='';
+      const list = disciplinas.filter(d=> d.concursoId===selectedConcursoId);
+      const curIdx = (remoteState && Number.isInteger(remoteState.disciplinaIndex)) ? remoteState.disciplinaIndex : null;
+
+      list.forEach((d,i)=>{
+        const li = document.createElement('li');
+        const isCurrent = (curIdx===i);
+        li.classList.toggle('current', isCurrent);
+        li.innerHTML = `<div><b>${i+1}. ${d.nome}</b> <span class="meta">(${d.estudo}+${d.pausa})</span> ${isCurrent ? "<span class='badge'>Atual</span>" : ""}</div>`;
+        fila.appendChild(li);
+      });
+    }
+
+    function renderExecIdle(){
+      $('fasePill').innerText='—';
+      $('timer').innerText='00:00';
+      $('btnStart').disabled=false;
+      $('btnPause').disabled=true;
+      $('btnStop').disabled=true;
+      $('disciplinaAtualBadge').classList.add('hidden');
+    }
+
+    function toggleExecButtons(running, paused){
+      $('btnStart').disabled = !!running;
+      $('btnPause').disabled = !running;
+      $('btnStop').disabled  = !running;
+      $('btnPause').innerText = paused ? '▶️ Retomar' : '⏯ Pausar/Retomar';
+    }
+
+    function showCurrentDiscipline(state){
+      if(!state) { $('disciplinaAtualBadge').classList.add('hidden'); return; }
+      const list = disciplinas.filter(d=> d.concursoId===state.concursoId);
+      const d = list[state.disciplinaIndex];
+      if(d){
+        $('disciplinaAtualBadge').classList.remove('hidden');
+        $('disciplinaAtualBadge').innerText = `Disciplina atual: ${d.nome}`;
+      }else{
+        $('disciplinaAtualBadge').classList.add('hidden');
+      }
+    }
+
+    function secondsRemainingFromState(st){
+      if(!st || !st.running) return 0;
+      if(st.paused) return st.duration; // quando pausado, duration guarda o restante
+      const elapsed = (now() - (st.startedAt||now()))/1000;
+      return Math.max(0, (st.duration||0) - Math.floor(elapsed));
+    }
+
+    function applyRemoteState(st){
+      // Ajusta UI geral
+      selectedConcursoId = st.concursoId || selectedConcursoId;
+      paintConcursoSelectors();
+      paintExecInfo();
+      paintExecQueue(st);
+      showCurrentDiscipline(st);
+
+      // Fase/Timer
+      $('fasePill').innerText = (st.fase==='estudo'?'Estudo':'Pausa');
+      $('timer').innerText = fmt(secondsRemainingFromState(st));
+
+      toggleExecButtons(st.running, st.paused);
+
+      // Reinicia o tick local para continuar a contagem visualmente
+      startLocalTick(st);
+    }
+
+    function startLocalTick(initialState){
+      stopLocalTick();
+      let lastState = initialState;
+
+      localTickId = setInterval(()=>{
+        if(!lastState || !lastState.running) { renderExecIdle(); return; }
+
+        // recálculo do restante em tempo real
+        const remaining = secondsRemainingFromState(lastState);
+        $('timer').innerText = fmt(remaining);
+
+        if(remaining <= 0){
+          // Transição de fase no dispositivo atual (coordenada via RTDB)
+          advancePhase(lastState).catch(console.error);
+        }
+      }, 1000);
+
+      // mantenha uma assinatura do RTDB através de onValue (já configurada) que chama applyRemoteState
+      // e atualiza lastState indiretamente via applyRemoteState -> startLocalTick novamente.
+    }
+
+    function stopLocalTick(){
+      if(localTickId){ clearInterval(localTickId); localTickId=null; }
+    }
+
+    // ===== Persistência no RTDB =====
+    function execRef(){
+      if(!user) return null;
+      return dbRef(dbRT, `users/${user.uid}/execState`);
+    }
+
+    async function saveState(partial){
+      const ref = execRef();
+      if(!ref) return;
+      await rtUpdate(ref, { lastUpdated: now(), ...partial });
+    }
+
+    async function setState(full){
+      const ref = execRef();
+      if(!ref) return;
+      await set(ref, { ...full, lastUpdated: now() });
+    }
+
+    // ===== Lógica de ciclo =====
+    function listForConcurso(concursoId){
+      return disciplinas.filter(d=> d.concursoId===concursoId);
+    }
+
+    async function startCycle(){
+      if(!user) return alert('Faça login.');
+      if(!selectedConcursoId) return alert('Selecione uma trilha.');
+      const list = listForConcurso(selectedConcursoId);
+      if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
+
+      const d0 = list[0];
+      await setState({
+        running:true,
+        paused:false,
+        concursoId:selectedConcursoId,
+        disciplinaIndex:0,
+        fase:'estudo',
+        startedAt: now(),
+        duration: (d0.estudo||1)*60
+      });
+    }
+
+    async function pauseResume(){
+      const ref = execRef();
+      if(!ref) return;
+      const snap = await get(ref);
+      const st = snap.val();
+      if(!st || !st.running) return;
+
+      if(st.paused){
+        // retomar: startedAt = agora, duration = restante atual
+        await saveState({ paused:false, startedAt: now() });
+      }else{
+        // pausar: calcule restante e congele em duration
+        const remaining = secondsRemainingFromState(st);
+        await saveState({ paused:true, duration: remaining });
+      }
+    }
+
+    async function stopAll(){
+      stopLocalTick();
+      await setState({
+        running:false, paused:false,
+        concursoId: selectedConcursoId || '',
+        disciplinaIndex: 0,
+        fase:'estudo',
+        startedAt: now(),
+        duration: 0
+      });
+      renderExecIdle();
+    }
+
+    async function advancePhase(st){
+      if(!st || !st.running) return;
+      const list = listForConcurso(st.concursoId);
+      const idx = st.disciplinaIndex;
+      const cur = list[idx];
+      if(!cur){ await stopAll(); return; }
+
+      if(st.fase==='estudo'){
+        // concluiu estudo desta disciplina
+        await updateDoc(doc(db,'users',user.uid,'subjects',cur.id), { concluidas: increment(1), lastDone: serverTimestamp() });
+        // passa para pausa da mesma disciplina
+        await saveState({ fase:'pausa', startedAt: now(), duration: (cur.pausa||1)*60 });
+      }else{
+        // terminou a pausa -> próxima disciplina
+        let nextIdx = idx + 1;
+        if(nextIdx >= list.length){
+          // ciclo completo
+          await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
+          nextIdx = 0;
+        }
+        const next = list[nextIdx];
+        await saveState({ disciplinaIndex: nextIdx, fase:'estudo', startedAt: now(), duration: (next?.estudo||1)*60 });
+      }
+    }
+
+    // ===== Botões =====
+    $('btnStart').addEventListener('click', startCycle);
+    $('btnPause').addEventListener('click', pauseResume);
+    $('btnStop').addEventListener('click', stopAll);
+
+    // página inicial
+    setPage('concurso');
+  </script>
 </body>
 </html>
