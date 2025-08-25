@@ -283,7 +283,8 @@
         $('btnSignOut').classList.add('hidden');
         concursos=[]; disciplinas=[]; selectedConcursoId=""; paintConcursos(); paintDisciplinas(); paintExecInfo();
         $('totalCyclesCard').innerText='0';
-        setPage('concurso');
+        //setPage('concurso');
+        setPage('execucao'); // em vez de 'concurso'
         $('currentTrackHeader').classList.add('hidden');
         $('currentTrackHeader').innerText = 'Trilha atual: —';
         return;
@@ -326,9 +327,13 @@
         if(!st){
           // nada ainda salvo
           renderExecIdle();
+          // Forçar ir para Execução mesmo sem estado
+          setPage('execucao');
           return;
         }
         applyRemoteState(st);
+        // Garantir que a página Execução esteja visível ao carregar
+        setPage('execucao');
       });
     });
 
@@ -568,6 +573,12 @@
       $('timer').innerText = fmt(secondsRemainingFromState(st));
 
       toggleExecButtons(st.running, st.paused);
+      
+      // checagem de st.remaining antes de iniciar startLocalTick(st)
+      // Objetivo: garantir que a contagem reinicie corretamente visualmente ao recarregar.
+      if(st.remaining>0){
+          startLocalTick(st);
+      }
 
       // Reinicia o tick local para continuar a contagem visualmente
       startLocalTick(st);
