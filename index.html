@@ -185,7 +185,7 @@
   
   <!-- Rodapé versao -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.3.1 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.3.2 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
 
@@ -328,8 +328,8 @@
       });
 
       // 🔸 Persistência real + sync em tempo real: ouvimos o estado no RTDB
-      const execRef = dbRef(dbRT, `users/${user.uid}/execState`);
-      onValue(execRef, (snap)=>{
+      const ref = dbRef(dbRT, `users/${user.uid}/execState`);
+      onValue(ref, (snap)=>{
         const st = snap.val();
         if(!st){
           // nada ainda salvo
@@ -639,15 +639,19 @@
     }
 
     async function saveState(partial){
-      const ref = execRef();
-      if(!ref) return;
-      await rtUpdate(ref, { lastUpdated: now(), ...partial });
+        const ref = execRef();
+        if(!ref) return;
+        const newState = { lastUpdated: now(), ...partial };
+        await rtUpdate(ref, newState);
+        setExecState(prev => ({ ...prev, ...newState }));
     }
 
     async function setState(full){
-      const ref = execRef();
-      if(!ref) return;
-      await set(ref, { ...full, lastUpdated: now() });
+        const ref = execRef();
+        if(!ref) return;
+        const newState = { ...full, lastUpdated: now() };
+        await set(ref, newState);
+        setExecState(newState);
     }
 
     // ===== Lógica de ciclo =====
@@ -656,33 +660,40 @@
     }
 
     async function startCycle(){ 
-    if(!user) return alert('Faça login.');
-    if(!selectedConcursoId) return alert('Selecione uma trilha.');
-    const list = listForConcurso(selectedConcursoId);
-    if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
+        if(!user) return alert('Faça login.');
+        if(!selectedConcursoId) return alert('Selecione uma trilha.');
+        const list = listForConcurso(selectedConcursoId);
+        if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
 
-    // 🔹 Verifica estado remoto antes de iniciar
-    //const snap = await get(execRef);
-    //const stRemoto = snap.val();
-    const execRefLocal = dbRef(dbRT, `users/${user.uid}/execState`);
-    const snap = await get(execRefLocal);
-    const stRemoto = snap.val();
+        // 🔹 Verifica estado remoto antes de iniciar
+        //const snap = await get(execRef);
+        //const stRemoto = snap.val();
+        //const execRefLocal = dbRef(dbRT, `users/${user.uid}/execState`);
+        //const snap = await get(execRefLocal);
+        const ref = execRef();
+        if(!ref) return;
+        const snap = await get(ref);
 
-    
-    if(stRemoto?.running){
-      return alert('Já existe uma trilha em execução em outro dispositivo/aba!');
-    }
+        const stRemoto = snap.val();
 
-    const d0 = list[0];
-    await setState({
-      running:true,
-      paused:false,
-      concursoId:selectedConcursoId,
-      disciplinaIndex:0,
-      fase:'estudo',
-      startedAt: now(),
-      duration: (d0.estudo||1)*60
-    });
+        if(stRemoto?.running){
+        return alert('Já existe uma trilha em execução em outro dispositivo/aba!');
+        }
+
+        const d0 = list[0];
+
+        const newState = {
+        running:true,
+        paused:false,
+        concursoId:selectedConcursoId,
+        disciplinaIndex:0,
+        fase:'estudo',
+        startedAt: now(),
+        duration: (d0.estudo||1)*60
+        };
+
+        await setState(newState)
+
   }
 
 
