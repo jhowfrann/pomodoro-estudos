@@ -183,9 +183,9 @@
   </div>
 
   
-  <!-- Rodapé -->
+  <!-- Rodapé versao -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.3 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.3.1 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
 
@@ -589,9 +589,16 @@
       // checagem de st.remaining antes de iniciar startLocalTick(st)
       // Objetivo: garantir que a contagem reinicie corretamente visualmente ao recarregar.
       //if(st.remaining>0){
+      //if(st.running){
+      //    startLocalTick(st);
+      //}
+      // Inicia o tick local somente se o ciclo estiver realmente rodando
       if(st.running){
           startLocalTick(st);
+      } else {
+          renderExecIdle();
       }
+
 
       // Reinicia o tick local para continuar a contagem visualmente
       //startLocalTick(st); // ✅ Remove a duplicidade de startLocalTick(st) e garante que só começa se running for verdadeiro.
@@ -655,8 +662,13 @@
     if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
 
     // 🔹 Verifica estado remoto antes de iniciar
-    const snap = await get(execRef);
+    //const snap = await get(execRef);
+    //const stRemoto = snap.val();
+    const execRefLocal = dbRef(dbRT, `users/${user.uid}/execState`);
+    const snap = await get(execRefLocal);
     const stRemoto = snap.val();
+
+    
     if(stRemoto?.running){
       return alert('Já existe uma trilha em execução em outro dispositivo/aba!');
     }
