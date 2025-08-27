@@ -98,6 +98,7 @@
           <div class="row" style="gap:8px;align-items:center">
             <div id="totalCyclesCard" class="timer" style="font-size:36px">0</div>
             <span class="meta">Contabiliza todos os ciclos completos de todas as trilhas.</span>
+            <button id="btnZerarCiclos" class="btn secondary" title="Zerar total de ciclos">🔄 Zerar ciclos (irreversível)</button>
           </div>
         </div>
       </div>
@@ -183,9 +184,9 @@
   </div>
 
   
-  <!-- Rodapé -->
+  <!-- Rodapé (versao) -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.1.1 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.1.2 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
   
@@ -716,6 +717,14 @@
     $('btnStart').addEventListener('click', startCycle);
     $('btnPause').addEventListener('click', pauseResume);
     $('btnStop').addEventListener('click', stopAll);
+    $('btnZerarCiclos').addEventListener('click', async ()=>{
+      if(!user) return alert("Faça login.");
+      if(!confirm("Tem certeza que quer zerar o total de ciclos?")) return;
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { cyclesCompleted: 0 });
+      $('totalCyclesCard').innerText = '0';
+    });
+
 
     // página inicial
     setPage('execucao');
