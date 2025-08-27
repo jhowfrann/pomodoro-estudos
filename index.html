@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pomodoro de Estudos — V2.1.4</title>
+  <title>Pomodoro de Estudos — V2.1.5</title>
   <style>
     :root{
       --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
@@ -49,7 +49,7 @@
 </head>
 <body data-theme="light">
   <header>
-    <h1>Pomodoro de Estudos <span class="meta">V2.1.4</span></h1>
+    <h1>Pomodoro de Estudos <span class="meta">V2.1.5</span></h1>
     <div class="row">
       <div id="currentTrackHeader" class="badge hidden">Trilha atual: —</div>
     </div>
@@ -186,7 +186,7 @@
   
   <!-- Rodapé (versao) -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.1.4 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.1.5 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
   
@@ -562,44 +562,40 @@
     }
 
     function updateProgressBar(state) {
-      if (!state) return;
-      
-      // pega a lista de disciplinas do concurso atual
-      const list = disciplinas.filter(d => d.concursoId === state.concursoId);
-      const d = list[state.disciplinaIndex];
-      if (!d) return;
+        if (!state) return;
+        
+        const list = disciplinas.filter(d => d.concursoId === state.concursoId);
+        const d = list[state.disciplinaIndex];
+        if (!d) return;
 
-      // pega o <li> correspondente
-      const ul = document.querySelector("section:nth-of-type(3) ul");
-      const li = ul.children[state.disciplinaIndex];
+        const ul = document.querySelector("section:nth-of-type(3) ul");
+        const li = ul.children[state.disciplinaIndex];
+        if(!li) return;
 
-      if(!li) return;
+        const studyTime = (d.estudo || 1) * 60;
+        const breakTime = (d.pausa || 1) * 60;
+        const totalTime = studyTime + breakTime;
 
-      // tempos em segundos
-      const studyTime = (d.estudo || 1) * 60;
-      const breakTime = (d.pausa || 1) * 60;
-      const totalTime = studyTime + breakTime;
+        const elapsedSinceStart = (now() - (state.startedAt||now()))/1000;
 
-      // tempo decorrido desde o início da disciplina
-      const elapsed = secondsRemainingFromState(state, true); // true indica "tempo decorrido"
+        const colorStudy = "#2563eb"; // azul do play
+        const colorBreak = "#9ca3af"; // cinza do pause
 
-      const percentElapsed = ((totalTime - elapsed) / totalTime) * 100;
-      const studyPercent = (studyTime / totalTime) * 100;
+        let percentStudy = 0;
+        let percentBreak = 0;
 
-      const colorStudy = "#2563eb"; // azul
-      const colorBreak = "#f97316"; // laranja
+        if(state.fase === 'estudo') {
+            percentStudy = Math.min(100, (elapsedSinceStart / studyTime) * 100);
+            percentBreak = 0;
+        } else if(state.fase === 'pausa') {
+            percentStudy = 100;
+            percentBreak = Math.min(100, ((elapsedSinceStart - studyTime) / breakTime) * 100);
+        }
 
-      let bg;
-      if(percentElapsed <= studyPercent) {
-        // ainda no estudo
-        bg = `linear-gradient(to right, ${colorStudy} ${percentElapsed}%, transparent ${percentElapsed}%)`;
-      } else {
-        // azul até estudo, laranja depois
-        bg = `linear-gradient(to right, ${colorStudy} ${studyPercent}%, ${colorBreak} ${studyPercent}%, ${colorBreak} ${percentElapsed}%, transparent ${percentElapsed}%)`;
-      }
+        // define fundo com duas cores progressivas
+        li.style.background = `linear-gradient(to right, ${colorStudy} ${percentStudy}%, ${colorBreak} ${percentStudy}%, ${colorBreak} ${percentStudy + percentBreak}%, transparent ${percentStudy + percentBreak}%)`;
+        }
 
-      li.style.background = bg;
-    }
 
 
     function secondsRemainingFromState(st, returnElapsed = false){
@@ -646,7 +642,7 @@
 
         // recálculo do restante em tempo real
         const remaining = secondsRemainingFromState(lastState);
-        $('timer').innerText = fmt(remaining);
+        $('timer').innerText = fmt(remaining);  //ATUALIZAÇÃO DO TIMER
 
         // **NOVA LINHA**: atualizar barra de progresso
         updateProgressBar(lastState);
