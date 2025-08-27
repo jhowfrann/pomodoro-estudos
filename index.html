@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pomodoro de Estudos — V2.0</title>
+  <title>Pomodoro de Estudos — V2.1.3</title>
   <style>
     :root{
       --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
@@ -186,7 +186,7 @@
   
   <!-- Rodapé (versao) -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.1.2 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.1.3 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
   
@@ -549,17 +549,35 @@
       $('btnPause').innerText = paused ? '▶️ Retomar' : '⏯ Pausar/Retomar';
     }
 
+    function updateProgressBar(state, remaining) {
+      const progressEl = $('progressBar');
+      if (!progressEl) return;
+
+      const percent = ((state.duration - remaining) / state.duration) * 100;
+      progressEl.style.width = percent + "%";
+    }
+
     function showCurrentDiscipline(state){
-      if(!state) { $('disciplinaAtualBadge').classList.add('hidden'); return; }
+      if(!state) { 
+        $('disciplinaAtualBadge').classList.add('hidden'); 
+        return; 
+      }
       const list = disciplinas.filter(d=> d.concursoId===state.concursoId);
       const d = list[state.disciplinaIndex];
+
       if(d){
         $('disciplinaAtualBadge').classList.remove('hidden');
-        $('disciplinaAtualBadge').innerText = `Disciplina atual: ${d.nome}`;
+        $('disciplinaAtualBadge').innerHTML = `
+          Disciplina atual: ${d.nome}
+          <div style="background:#ddd; border-radius:8px; overflow:hidden; margin-top:5px; height:10px;">
+            <div id="progressBar" style="background:#4caf50; width:0%; height:100%; transition:width 0.5s;"></div>
+          </div>
+        `;
       }else{
         $('disciplinaAtualBadge').classList.add('hidden');
       }
     }
+
 
     function secondsRemainingFromState(st){
       if(!st || !st.running) return 0;
@@ -592,25 +610,30 @@
       startLocalTick(st);
     }
 
-    function startLocalTick(initialState){
+    function startLocalTick(initialState) {
       stopLocalTick();
       let lastState = initialState;
 
-      localTickId = setInterval(()=>{
-        if(!lastState || !lastState.running) { renderExecIdle(); return; }
+      localTimer = setInterval(() => {
+        if (!lastState) return;
 
-        // recálculo do restante em tempo real
-        const remaining = secondsRemainingFromState(lastState);
-        $('timer').innerText = fmt(remaining);
+        const elapsed = Math.floor((Date.now() - lastState.startTime) / 1000);
+        const remaining = Math.max(0, lastState.duration - elapsed);
 
-        if(remaining <= 0){
-          // Transição de fase no dispositivo atual (coordenada via RTDB)
-          advancePhase(lastState).catch(console.error);
+        // Atualiza timer na tela
+        $('timer').innerText = formatTime(remaining);
+
+        // Atualiza barra de progresso
+        updateProgressBar(lastState, remaining);
+
+        // Salva estado local
+        localStorage.setItem("pomodoroState", JSON.stringify(lastState));
+
+        // Avança de fase quando zerar
+        if (remaining <= 0) {
+          advancePhase(lastState);
         }
       }, 1000);
-
-      // mantenha uma assinatura do RTDB através de onValue (já configurada) que chama applyRemoteState
-      // e atualiza lastState indiretamente via applyRemoteState -> startLocalTick novamente.
     }
 
     function stopLocalTick(){
@@ -634,6 +657,9 @@
       if(!ref) return;
       await set(ref, { ...full, lastUpdated: now() });
     }
+
+    // ===== Progresso da Barra =====
+
 
     // ===== Lógica de ciclo =====
     function listForConcurso(concursoId){
