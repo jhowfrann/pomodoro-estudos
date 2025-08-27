@@ -183,9 +183,9 @@
   </div>
 
   
-  <!-- Rodapé versao -->
+  <!-- Rodapé -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.3 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.2 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
 
@@ -588,27 +588,23 @@
       
       // checagem de st.remaining antes de iniciar startLocalTick(st)
       // Objetivo: garantir que a contagem reinicie corretamente visualmente ao recarregar.
-      //if(st.remaining>0){
-      if(st.running){
+      if(st.remaining>0){
           startLocalTick(st);
       }
 
       // Reinicia o tick local para continuar a contagem visualmente
-      //startLocalTick(st); // ✅ Remove a duplicidade de startLocalTick(st) e garante que só começa se running for verdadeiro.
+      startLocalTick(st);
     }
 
     function startLocalTick(initialState){
       stopLocalTick();
-      let lastState = {...initialState}; // clone do estado para manipular
+      let lastState = initialState;
 
       localTickId = setInterval(()=>{
         if(!lastState || !lastState.running) { renderExecIdle(); return; }
 
         // recálculo do restante em tempo real
-        //const remaining = secondsRemainingFromState(lastState);
-        const elapsed = Math.floor((Date.now() - lastState.startedAt) / 1000);
-        let remaining = lastState.duration - elapsed;
-        remaining = Math.max(remaining, 0);
+        const remaining = secondsRemainingFromState(lastState);
         $('timer').innerText = fmt(remaining);
 
         if(remaining <= 0){
@@ -735,7 +731,7 @@
     $('btnStop').addEventListener('click', stopAll);
 
     // página inicial
-    setPage('execucao');
+    setPage('concurso');
   </script>
 </body>
 </html>
