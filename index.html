@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pomodoro de Estudos — V2.1.5</title>
+  <title>Pomodoro de Estudos — V2.1.6</title>
   <style>
     :root{
       --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
@@ -49,7 +49,7 @@
 </head>
 <body data-theme="light">
   <header>
-    <h1>Pomodoro de Estudos <span class="meta">V2.1.5</span></h1>
+    <h1>Pomodoro de Estudos <span class="meta">V2.1.6</span></h1>
     <div class="row">
       <div id="currentTrackHeader" class="badge hidden">Trilha atual: —</div>
     </div>
@@ -186,7 +186,7 @@
   
   <!-- Rodapé (versao) -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.1.5 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.1.6 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
   
@@ -563,7 +563,7 @@
 
     function updateProgressBar(state) {
         if (!state) return;
-        
+
         const list = disciplinas.filter(d => d.concursoId === state.concursoId);
         const d = list[state.disciplinaIndex];
         if (!d) return;
@@ -576,7 +576,14 @@
         const breakTime = (d.pausa || 1) * 60;
         const totalTime = studyTime + breakTime;
 
-        const elapsedSinceStart = (now() - (state.startedAt||now()))/1000;
+        // elapsed considerando pausa
+        let elapsedSinceStart = 0;
+        if(state.running) {
+            elapsedSinceStart = state.paused ? (state.duration || 0) : (now() - (state.startedAt||now()))/1000;
+            if(state.fase === 'pausa' && !state.paused) {
+                elapsedSinceStart += studyTime;
+            }
+        }
 
         const colorStudy = "#2563eb"; // azul do play
         const colorBreak = "#9ca3af"; // cinza do pause
@@ -592,9 +599,11 @@
             percentBreak = Math.min(100, ((elapsedSinceStart - studyTime) / breakTime) * 100);
         }
 
-        // define fundo com duas cores progressivas
+        // aplica suavidade na progressão
+        li.style.transition = 'background 0.5s linear';
         li.style.background = `linear-gradient(to right, ${colorStudy} ${percentStudy}%, ${colorBreak} ${percentStudy}%, ${colorBreak} ${percentStudy + percentBreak}%, transparent ${percentStudy + percentBreak}%)`;
-        }
+    }
+
 
 
 
@@ -634,28 +643,29 @@
     }
 
     function startLocalTick(initialState){
-      stopLocalTick();
-      let lastState = initialState;
+        stopLocalTick();
+        let lastState = initialState;
 
-      localTickId = setInterval(()=>{
-        if(!lastState || !lastState.running) { renderExecIdle(); return; }
+        localTickId = setInterval(async ()=>{
+            if(!lastState || !lastState.running) { 
+                renderExecIdle(); 
+                return; 
+            }
 
-        // recálculo do restante em tempo real
-        const remaining = secondsRemainingFromState(lastState);
-        $('timer').innerText = fmt(remaining);  //ATUALIZAÇÃO DO TIMER
+            // recálculo do restante em tempo real
+            const remaining = secondsRemainingFromState(lastState);
+            $('timer').innerText = fmt(remaining);
 
-        // **NOVA LINHA**: atualizar barra de progresso
-        updateProgressBar(lastState);
+            // atualiza barra de progresso suavemente
+            updateProgressBar(lastState);
 
-        if(remaining <= 0){
-          // Transição de fase no dispositivo atual (coordenada via RTDB)
-          advancePhase(lastState).catch(console.error);
-        }
-      }, 1000);
-
-      // mantenha uma assinatura do RTDB através de onValue (já configurada) que chama applyRemoteState
-      // e atualiza lastState indiretamente via applyRemoteState -> startLocalTick novamente.
+            if(remaining <= 0){
+                // transição de fase no dispositivo atual (coordenada via RTDB)
+                await advancePhase(lastState).catch(console.error);
+            }
+        }, 1000);
     }
+
 
     function stopLocalTick(){
       if(localTickId){ clearInterval(localTickId); localTickId=null; }
