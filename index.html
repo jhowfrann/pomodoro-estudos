@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pomodoro de Estudos — V2.1.6</title>
+  <title>Pomodoro de Estudos — V2.1.7</title>
   <style>
     :root{
       --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
@@ -49,7 +49,7 @@
 </head>
 <body data-theme="light">
   <header>
-    <h1>Pomodoro de Estudos <span class="meta">V2.1.6</span></h1>
+    <h1>Pomodoro de Estudos <span class="meta">V2.1.7</span></h1>
     <div class="row">
       <div id="currentTrackHeader" class="badge hidden">Trilha atual: —</div>
     </div>
@@ -186,7 +186,7 @@
   
   <!-- Rodapé (versao) -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.1.6 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.1.7 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
   
@@ -576,33 +576,38 @@
         const breakTime = (d.pausa || 1) * 60;
         const totalTime = studyTime + breakTime;
 
-        // elapsed considerando pausa
-        let elapsedSinceStart = 0;
+        // calcula tempo decorrido considerando pausa
+        let elapsed = 0;
         if(state.running) {
-            elapsedSinceStart = state.paused ? (state.duration || 0) : (now() - (state.startedAt||now()))/1000;
-            if(state.fase === 'pausa' && !state.paused) {
-                elapsedSinceStart += studyTime;
+            if(state.paused) {
+                elapsed = (state.duration || 0);
+                if(state.fase === 'pausa') elapsed += studyTime;
+            } else {
+                elapsed = (now() - (state.startedAt||now())) / 1000;
+                if(state.fase === 'pausa') elapsed += studyTime;
             }
         }
 
         const colorStudy = "#2563eb"; // azul do play
         const colorBreak = "#9ca3af"; // cinza do pause
+        const percentStudyMax = (studyTime / totalTime) * 100;
+        const percentBreakMax = (breakTime / totalTime) * 100;
 
         let percentStudy = 0;
         let percentBreak = 0;
 
         if(state.fase === 'estudo') {
-            percentStudy = Math.min(100, (elapsedSinceStart / studyTime) * 100);
+            percentStudy = Math.min(percentStudyMax, (elapsed / studyTime) * percentStudyMax);
             percentBreak = 0;
         } else if(state.fase === 'pausa') {
-            percentStudy = 100;
-            percentBreak = Math.min(100, ((elapsedSinceStart - studyTime) / breakTime) * 100);
+            percentStudy = percentStudyMax; // azul fixo
+            percentBreak = Math.min(percentBreakMax, ((elapsed - studyTime) / breakTime) * percentBreakMax);
         }
 
-        // aplica suavidade na progressão
         li.style.transition = 'background 0.5s linear';
         li.style.background = `linear-gradient(to right, ${colorStudy} ${percentStudy}%, ${colorBreak} ${percentStudy}%, ${colorBreak} ${percentStudy + percentBreak}%, transparent ${percentStudy + percentBreak}%)`;
     }
+
 
 
 
@@ -652,19 +657,18 @@
                 return; 
             }
 
-            // recálculo do restante em tempo real
             const remaining = secondsRemainingFromState(lastState);
             $('timer').innerText = fmt(remaining);
 
-            // atualiza barra de progresso suavemente
+            // atualiza a barra de progresso corretamente
             updateProgressBar(lastState);
 
             if(remaining <= 0){
-                // transição de fase no dispositivo atual (coordenada via RTDB)
                 await advancePhase(lastState).catch(console.error);
             }
         }, 1000);
     }
+
 
 
     function stopLocalTick(){
@@ -743,35 +747,33 @@
     }
 
     async function advancePhase(st){
-      if(!st || !st.running) return;
-      const list = listForConcurso(st.concursoId);
-      const idx = st.disciplinaIndex;
-      const cur = list[idx];
-      if(!cur){ await stopAll(); return; }
+        if(!st || !st.running) return;
 
-      if(st.fase==='estudo'){
-        // concluiu estudo desta disciplina
-        await updateDoc(doc(db,'users',user.uid,'subjects',cur.id), { concluidas: increment(1), lastDone: serverTimestamp() });
-        // passa para pausa da mesma disciplina
-        await saveState({ fase:'pausa', startedAt: now(), duration: (cur.pausa||1)*60 });
-      }else{
-        // terminou a pausa -> próxima disciplina
-        let nextIdx = idx + 1;
-        if(nextIdx >= list.length){
-          // ciclo completo
-          await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
-          nextIdx = 0;
+        const list = listForConcurso(st.concursoId);
+        const idx = st.disciplinaIndex;
+        const cur = list[idx];
+        if(!cur){ await stopAll(); return; }
+
+        if(st.fase==='estudo'){
+            await updateDoc(doc(db,'users',user.uid,'subjects',cur.id), { concluidas: increment(1), lastDone: serverTimestamp() });
+            await saveState({ fase:'pausa', startedAt: now(), duration: (cur.pausa||1)*60 });
+        } else {
+            let nextIdx = idx + 1;
+            if(nextIdx >= list.length){
+                await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
+                nextIdx = 0;
+            }
+
+            // limpa fundo do <li> anterior
+            const ul = document.querySelector("section:nth-of-type(3) ul");
+            const prevLi = ul?.children[st.disciplinaIndex];
+            if(prevLi) prevLi.style.background = "";
+
+            const next = list[nextIdx];
+            await saveState({ disciplinaIndex: nextIdx, fase:'estudo', startedAt: now(), duration: (next?.estudo||1)*60 });
         }
-
-        // limpa fundo do <li> anterior
-        const ul = document.querySelector("section:nth-of-type(3) ul");
-        const prevLi = ul?.children[st.disciplinaIndex];
-        if(prevLi) prevLi.style.background = "";
-
-        const next = list[nextIdx];
-        await saveState({ disciplinaIndex: nextIdx, fase:'estudo', startedAt: now(), duration: (next?.estudo||1)*60 });
-      }
     }
+
 
     // ===== Botões =====
     $('btnStart').addEventListener('click', startCycle);
