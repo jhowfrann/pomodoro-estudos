@@ -185,10 +185,10 @@
   
   <!-- Rodapé -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.2 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.1 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
-
+  
   <script type="module">
     // ===== Firebase (CDN) =====
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -339,11 +339,6 @@
           return;
         }
         applyRemoteState(st);
-
-        if(st.running && st.concursoId !== selectedConcursoId){
-          alert('Atenção: Outra trilha está em execução em outro dispositivo/aba!');
-        }
-
         // Garantir que a página Execução esteja visível ao carregar
         setPage('execucao');
       });
@@ -644,31 +639,23 @@
       return disciplinas.filter(d=> d.concursoId===concursoId);
     }
 
-    async function startCycle(){ 
-    if(!user) return alert('Faça login.');
-    if(!selectedConcursoId) return alert('Selecione uma trilha.');
-    const list = listForConcurso(selectedConcursoId);
-    if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
+    async function startCycle(){
+      if(!user) return alert('Faça login.');
+      if(!selectedConcursoId) return alert('Selecione uma trilha.');
+      const list = listForConcurso(selectedConcursoId);
+      if(list.length===0) return alert('Cadastre ao menos uma disciplina nesta trilha.');
 
-    // 🔹 Verifica estado remoto antes de iniciar
-    const snap = await get(execRef);
-    const stRemoto = snap.val();
-    if(stRemoto?.running){
-      return alert('Já existe uma trilha em execução em outro dispositivo/aba!');
+      const d0 = list[0];
+      await setState({
+        running:true,
+        paused:false,
+        concursoId:selectedConcursoId,
+        disciplinaIndex:0,
+        fase:'estudo',
+        startedAt: now(),
+        duration: (d0.estudo||1)*60
+      });
     }
-
-    const d0 = list[0];
-    await setState({
-      running:true,
-      paused:false,
-      concursoId:selectedConcursoId,
-      disciplinaIndex:0,
-      fase:'estudo',
-      startedAt: now(),
-      duration: (d0.estudo||1)*60
-    });
-  }
-
 
     async function pauseResume(){
       const ref = execRef();
