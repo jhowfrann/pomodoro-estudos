@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pomodoro de Estudos — V2.1.3</title>
+  <title>Pomodoro de Estudos — V2.1.4</title>
   <style>
     :root{
       --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --accent:#2563eb; --muted:#6b7280; --border:#e5e7eb; --soft:#eef2f7;
@@ -49,7 +49,7 @@
 </head>
 <body data-theme="light">
   <header>
-    <h1>Pomodoro de Estudos <span class="meta">V2.1.3</span></h1>
+    <h1>Pomodoro de Estudos <span class="meta">V2.1.4</span></h1>
     <div class="row">
       <div id="currentTrackHeader" class="badge hidden">Trilha atual: —</div>
     </div>
@@ -186,7 +186,7 @@
   
   <!-- Rodapé (versao) -->
   <footer style="text-align:center; font-size:0.85em; padding:8px; margin-top:16px; color:#666;">
-    Pomodoro Estudos • Versão V2.1.3 • Desenvolvido por Jhowfrann Silva • &copy; 2025
+    Pomodoro Estudos • Versão V2.1.4 • Desenvolvido por Jhowfrann Silva • &copy; 2025
   </footer>
 
   
@@ -549,42 +549,69 @@
       $('btnPause').innerText = paused ? '▶️ Retomar' : '⏯ Pausar/Retomar';
     }
 
-    function updateProgressBar(state, remaining) {
-      const progressEl = $('progressBar');
-      if (!progressEl) return;
-
-      const percent = ((state.duration - remaining) / state.duration) * 100;
-      progressEl.style.width = percent + "%";
-    }
-
     function showCurrentDiscipline(state){
-      if(!state) { 
-        $('disciplinaAtualBadge').classList.add('hidden'); 
-        return; 
-      }
+      if(!state) { $('disciplinaAtualBadge').classList.add('hidden'); return; }
       const list = disciplinas.filter(d=> d.concursoId===state.concursoId);
       const d = list[state.disciplinaIndex];
-
       if(d){
         $('disciplinaAtualBadge').classList.remove('hidden');
-        $('disciplinaAtualBadge').innerHTML = `
-          Disciplina atual: ${d.nome}
-          <div style="background:#ddd; border-radius:8px; overflow:hidden; margin-top:5px; height:10px;">
-            <div id="progressBar" style="background:#4caf50; width:0%; height:100%; transition:width 0.5s;"></div>
-          </div>
-        `;
+        $('disciplinaAtualBadge').innerText = `Disciplina atual: ${d.nome}`;
       }else{
         $('disciplinaAtualBadge').classList.add('hidden');
       }
     }
 
+    function updateProgressBar(state) {
+      if (!state) return;
+      
+      // pega a lista de disciplinas do concurso atual
+      const list = disciplinas.filter(d => d.concursoId === state.concursoId);
+      const d = list[state.disciplinaIndex];
+      if (!d) return;
 
-    function secondsRemainingFromState(st){
-      if(!st || !st.running) return 0;
-      if(st.paused) return st.duration; // quando pausado, duration guarda o restante
-      const elapsed = (now() - (st.startedAt||now()))/1000;
-      return Math.max(0, (st.duration||0) - Math.floor(elapsed));
+      // pega o <li> correspondente
+      const ul = document.querySelector("section:nth-of-type(3) ul");
+      const li = ul.children[state.disciplinaIndex];
+
+      if(!li) return;
+
+      // tempos em segundos
+      const studyTime = (d.estudo || 1) * 60;
+      const breakTime = (d.pausa || 1) * 60;
+      const totalTime = studyTime + breakTime;
+
+      // tempo decorrido desde o início da disciplina
+      const elapsed = secondsRemainingFromState(state, true); // true indica "tempo decorrido"
+
+      const percentElapsed = ((totalTime - elapsed) / totalTime) * 100;
+      const studyPercent = (studyTime / totalTime) * 100;
+
+      const colorStudy = "#2563eb"; // azul
+      const colorBreak = "#f97316"; // laranja
+
+      let bg;
+      if(percentElapsed <= studyPercent) {
+        // ainda no estudo
+        bg = `linear-gradient(to right, ${colorStudy} ${percentElapsed}%, transparent ${percentElapsed}%)`;
+      } else {
+        // azul até estudo, laranja depois
+        bg = `linear-gradient(to right, ${colorStudy} ${studyPercent}%, ${colorBreak} ${studyPercent}%, ${colorBreak} ${percentElapsed}%, transparent ${percentElapsed}%)`;
+      }
+
+      li.style.background = bg;
     }
+
+
+    function secondsRemainingFromState(st, returnElapsed = false){
+        if(!st || !st.running) return 0;
+        if(st.paused) return returnElapsed ? ((st.duration||0) - st.duration) : st.duration;
+        
+        const elapsed = (now() - (st.startedAt||now()))/1000;
+        const remaining = Math.max(0, (st.duration||0) - Math.floor(elapsed));
+
+        return returnElapsed ? (st.duration - remaining) : remaining;
+    }
+
 
     function applyRemoteState(st){
       // Ajusta UI geral
@@ -610,30 +637,28 @@
       startLocalTick(st);
     }
 
-    function startLocalTick(initialState) {
+    function startLocalTick(initialState){
       stopLocalTick();
       let lastState = initialState;
 
-      localTimer = setInterval(() => {
-        if (!lastState) return;
+      localTickId = setInterval(()=>{
+        if(!lastState || !lastState.running) { renderExecIdle(); return; }
 
-        const elapsed = Math.floor((Date.now() - lastState.startTime) / 1000);
-        const remaining = Math.max(0, lastState.duration - elapsed);
+        // recálculo do restante em tempo real
+        const remaining = secondsRemainingFromState(lastState);
+        $('timer').innerText = fmt(remaining);
 
-        // Atualiza timer na tela
-        $('timer').innerText = formatTime(remaining);
+        // **NOVA LINHA**: atualizar barra de progresso
+        updateProgressBar(lastState);
 
-        // Atualiza barra de progresso
-        updateProgressBar(lastState, remaining);
-
-        // Salva estado local
-        localStorage.setItem("pomodoroState", JSON.stringify(lastState));
-
-        // Avança de fase quando zerar
-        if (remaining <= 0) {
-          advancePhase(lastState);
+        if(remaining <= 0){
+          // Transição de fase no dispositivo atual (coordenada via RTDB)
+          advancePhase(lastState).catch(console.error);
         }
       }, 1000);
+
+      // mantenha uma assinatura do RTDB através de onValue (já configurada) que chama applyRemoteState
+      // e atualiza lastState indiretamente via applyRemoteState -> startLocalTick novamente.
     }
 
     function stopLocalTick(){
@@ -657,9 +682,6 @@
       if(!ref) return;
       await set(ref, { ...full, lastUpdated: now() });
     }
-
-    // ===== Progresso da Barra =====
-
 
     // ===== Lógica de ciclo =====
     function listForConcurso(concursoId){
@@ -734,6 +756,12 @@
           await updateDoc(doc(db,'users',user.uid), { cyclesCompleted: increment(1), lastCycle: serverTimestamp() });
           nextIdx = 0;
         }
+
+        // limpa fundo do <li> anterior
+        const ul = document.querySelector("section:nth-of-type(3) ul");
+        const prevLi = ul?.children[st.disciplinaIndex];
+        if(prevLi) prevLi.style.background = "";
+
         const next = list[nextIdx];
         await saveState({ disciplinaIndex: nextIdx, fase:'estudo', startedAt: now(), duration: (next?.estudo||1)*60 });
       }
